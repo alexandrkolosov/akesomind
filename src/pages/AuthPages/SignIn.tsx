@@ -37,9 +37,10 @@ export default function SignIn() {
         body: params.toString(),
       });
 
+
       if (response.ok) {
         // Successful login, redirect or handle token as needed.
-        navigate("https://akesomind.vercel.app/profile");
+        navigate("/profile");
       } else if (response.status === 403) {
         setError("Check your password or activate your account");
       } else if (response.status === 401) {
