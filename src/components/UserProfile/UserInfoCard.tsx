@@ -19,8 +19,8 @@ export default function UserInfoCard() {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            // Include any auth headers if required
           },
+          credentials: "include", // Ensure cookies are sent
         });
         if (response.ok) {
           const data = await response.json();
@@ -35,9 +35,9 @@ export default function UserInfoCard() {
         setLoading(false);
       }
     };
+
     fetchUserDetails();
   }, []);
-
   const handleSave = async () => {
     try {
       const response = await fetch("https://api.akesomind.com/api/user", {
