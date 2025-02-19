@@ -22,18 +22,12 @@ interface AddClientModalProps {
 export {};
 
 async function createClient(clientData: ClientData): Promise<Response> {
-    // Example: Retrieve token from localStorage (adjust this based on your auth implementation)
-    const token = localStorage.getItem("authToken");
     return fetch("https://api.akesomind.com/api/user/createUser", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            // Include the Authorization header if token is available
-            ...(token && { "Authorization": `Bearer ${token}` }),
         },
         body: JSON.stringify(clientData),
-        // If your API requires credentials, uncomment the next line:
-        // credentials: "include",
     });
 }
 
