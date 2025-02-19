@@ -21,6 +21,7 @@ interface AddClientModalProps {
 }
 export {};
 
+// API request for client registration
 async function createClient(clientData: ClientData): Promise<Response> {
     return fetch("https://api.akesomind.com/api/user/createUser", {
         method: "POST",
@@ -31,7 +32,6 @@ async function createClient(clientData: ClientData): Promise<Response> {
     });
 }
 
-
 export default function CreateClientModal({ isOpen, onClose }: AddClientModalProps) {
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -39,14 +39,15 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
     const [password, setPassword] = useState("");
     // Pre-populated; not editable:
     const therapistCode = "ABC123";
-    const type = "Client";
+    // Now allow the user to select the type
+    const [userType, setUserType] = useState("Client");
     const [zoneId, setZoneId] = useState("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         // Validate required fields
-        if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-            alert("Please fill in the required fields: First Name, Last Name, Email, and Password");
+        if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim() || !userType.trim()) {
+            alert("Please fill in the required fields: First Name, Last Name, Email, Password, and Type");
             return;
         }
         const clientData: ClientData = {
@@ -54,7 +55,7 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
             firstName,
             lastName,
             password,
-            type,
+            type: userType,
             therapistCode,
             zoneId: zoneId.trim() ? zoneId : undefined,
         };
@@ -72,6 +73,7 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
                 setLastName("");
                 setEmail("");
                 setPassword("");
+                setUserType("Client");
                 setZoneId("");
             } else if (response.status === 400) {
                 alert("Error: Email is already taken or the therapist code is incorrect.");
@@ -90,9 +92,8 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-20">
-            <ComponentCard
-            title="Create New Client">
-            <Form onSubmit={handleSubmit}>
+            <ComponentCard title="Create New Client">
+                <Form onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 gap-6">
                         {/* First Name (Required) */}
                         <div>
@@ -157,6 +158,22 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
                                 disabled
                             />
                         </div>
+                        {/* Type (Required) */}
+                        <div>
+                            <Label htmlFor="userType">
+                                Type <span className="text-red-500">*</span>
+                            </Label>
+                            <select
+                                id="userType"
+                                value={userType}
+                                onChange={(e) => setUserType(e.target.value)}
+                                className="w-full rounded border border-gray-300 px-3 py-2 focus:border-brand-300 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                required
+                            >
+                                <option value="Client">Client</option>
+                                <option value="Therapist">Therapist</option>
+                            </select>
+                        </div>
                         {/* Zone ID (Optional) */}
                         <div>
                             <Label htmlFor="zoneId">Zone ID</Label>
@@ -173,7 +190,7 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
                             <Button size="sm" onClick={onClose} className="bg-gray-500">
                                 Cancel
                             </Button>
-                            <Button size="sm" /* Remove type="submit" if your Button component doesn't support it */>
+                            <Button size="sm">
                                 Create Client
                             </Button>
                         </div>
