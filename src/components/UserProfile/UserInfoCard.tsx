@@ -44,9 +44,8 @@ export default function UserInfoCard() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          // Include any auth headers if required
         },
-        // Prepare payload. For zoneId, we wrap the text in an object { id: ... }
+        credentials: "include", // Include cookies in the PUT request
         body: JSON.stringify({
           ...profileData,
           zoneId: { id: profileData.zoneId?.id || "" },
