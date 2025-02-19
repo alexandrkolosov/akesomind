@@ -188,7 +188,7 @@ export default function SignIn() {
                         </span>
                         </div>
                         <Link
-                            to="/forgot-password"
+                            to="/reset-password"
                             className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
                         >
                           Forgot password?
