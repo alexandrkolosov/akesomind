@@ -32,11 +32,20 @@ export default function SignIn() {
 
       if (response.ok) {
         // Successful login, redirect or handle token as needed.
-        navigate("/dashboard");;
+        navigate("/dashboard");
       } else if (response.status === 403) {
         setError("Check your password or activate your account");
+      } else if (response.status === 401) {
+        setError("Unauthorized: Please check your credentials.");
       } else {
-        const errorData = await response.json();
+        // Optionally, check if the response has content before parsing JSON
+        const text = await response.text();
+        let errorData;
+        try {
+          errorData = text ? JSON.parse(text) : {};
+        } catch {
+          errorData = {};
+        }
         setError(errorData.message || "Failed to sign in");
       }
     } catch (err) {
