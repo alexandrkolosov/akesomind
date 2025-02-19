@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -9,199 +9,120 @@ import {
   TableRow,
 } from "../../../ui/table";
 import { AngleDownIcon, AngleUpIcon } from "../../../../icons";
-
 import PaginationWithIcon from "./PaginationWithIcon";
 import { Link } from "react-router-dom";
 
-const tableRowData = [
-  {
-    id: 1,
-    user: {
-      image: "/images/user/user-20.jpg",
-      name: "Abram Schleifer",
-    },
-    position: "Depression",
-    location: "Edinburgh",
-    age: 57,
-    date: "25 Apr, 2027",
-    salary: "$89,500",
-  },
-  {
-    id: 2,
-    user: {
-      image: "/images/user/user-21.jpg",
-      name: "Charlotte Anderson",
-    },
-    position: "Anxiety",
-    location: "London",
-    age: 42,
-    date: "12 Mar, 2025",
-    salary: "$105,000",
-  },
-  {
-    id: 3,
-    user: {
-      image: "/images/user/user-22.jpg",
-      name: "Ethan Brown",
-    },
-    position: "Eating disorder",
-    location: "San Francisco",
-    age: 30,
-    date: "01 Jan, 2024",
-    salary: "$120,000",
-  },
-  {
-    id: 4,
-    user: {
-      image: "/images/user/user-23.jpg",
-      name: "Sophia Martinez",
-    },
-    position: "OCD",
-    location: "New York",
-    age: 35,
-    date: "15 Jun, 2026",
-    salary: "$95,000",
-  },
-  {
-    id: 5,
-    user: {
-      image: "/images/user/user-24.jpg",
-      name: "James Wilson",
-    },
-    position: "OCD",
-    location: "Chicago",
-    age: 28,
-    date: "20 Sep, 2025",
-    salary: "$80,000",
-  },
-  {
-    id: 6,
-    user: {
-      image: "/images/user/user-25.jpg",
-      name: "Olivia Johnson",
-    },
-    position: "Depression",
-    location: "Los Angeles",
-    age: 40,
-    date: "08 Nov, 2026",
-    salary: "$75,000",
-  },
-  {
-    id: 7,
-    user: {
-      image: "/images/user/user-26.jpg",
-      name: "William Smith",
-    },
-    position: "PTDS",
-    location: "Seattle",
-    age: 38,
-    date: "03 Feb, 2026",
-    salary: "$88,000",
-  },
-  {
-    id: 8,
-    user: {
-      image: "/images/user/user-27.jpg",
-      name: "Isabella Davis",
-    },
-    position: "PTDS",
-    location: "Austin",
-    age: 29,
-    date: "18 Jul, 2025",
-    salary: "$92,000",
-  },
-  {
-    id: 9,
-    user: {
-      image: "/images/user/user-28.jpg",
-      name: "Liam Moore",
-    },
-    position: "Depression and Anxiety",
-    location: "Boston",
-    age: 33,
-    date: "30 Oct, 2024",
-    salary: "$115,000",
-  },
-  {
-    id: 10,
-    user: {
-      image: "/images/user/user-29.jpg",
-      name: "Mia Garcia",
-    },
-    position: "Depression",
-    location: "Denver",
-    age: 27,
-    date: "12 Dec, 2027",
-    salary: "$70,000",
-  },
-];
+// Shape of each client item inside the "list"
+interface ClientItem {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  birthday: string;      // e.g., "2025-02-19T19:28:58.303Z"
+  lastSession: string;   // e.g., "2025-02-19T19:28:58.303Z"
+  avatar: string;
+  // "tags" is omitted here because we are not displaying it in the table,
+  // but you could add it if needed:
+  // tags: {
+  //   list: { id: number; name: string }[];
+  //   total: number;
+  // };
+}
 
-type SortKey = "name" | "position" | "location" | "age" | "date" | "salary";
+// Sorting keys
+type SortKey = "firstName" | "lastName" | "email" | "birthday" | "lastSession";
 type SortOrder = "asc" | "desc";
 
 export default function DataTableOne() {
+  // State to hold the array of client items
+  const [tableRowData, setTableRowData] = useState<ClientItem[]>([]);
+
+  // State for pagination, sorting, and searching
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortKey, setSortKey] = useState<SortKey>("firstName");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const response = await fetch("https://api.akesomind.com/api/therapist/clients", {
+          method: "GET",
+          credentials: "include", // Include cookies if your backend uses cookie-based auth
+        });
+        if (!response.ok) {
+          throw new Error("Failed to fetch clients");
+        }
+
+        // The returned JSON structure:
+        // {
+        //   "list": [... array of client items ...],
+        //   "total": 0
+        // }
+        const data = await response.json();
+
+        // Extract the list of clients from data.list
+        setTableRowData(data.list || []);
+        // If you need the total from the server, you can store data.total in a separate state
+        // or simply rely on local filtering/sorting as shown below.
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    fetchClients();
+  }, []);
+
+  // Filter and sort data
   const filteredAndSortedData = useMemo(() => {
     const lowerSearchTerm = searchTerm.toLowerCase();
 
-    // Filter: corrected to filtration for all
+    // 1) Filter by any relevant field
     const filtered = tableRowData.filter((item) => {
-      return Object.entries(item).some(([key, value]) => {
-        if (typeof value === "string") {
-          return value.toLowerCase().includes(lowerSearchTerm);
-        } else if (typeof value === "number") {
-          return value.toString().includes(lowerSearchTerm);
-        } else if (typeof value === "object" && value !== null) {
-          // search within user.name
-          return Object.values(value).some(
-              (nested) =>
-                  typeof nested === "string" &&
-                  nested.toLowerCase().includes(lowerSearchTerm)
-          );
-        }
-        return false;
-      });
+      const { avatar, firstName, lastName, email, birthday, lastSession } = item;
+      return (
+          avatar?.toLowerCase().includes(lowerSearchTerm) ||
+          firstName?.toLowerCase().includes(lowerSearchTerm) ||
+          lastName?.toLowerCase().includes(lowerSearchTerm) ||
+          email?.toLowerCase().includes(lowerSearchTerm) ||
+          birthday?.toLowerCase().includes(lowerSearchTerm) ||
+          lastSession?.toLowerCase().includes(lowerSearchTerm)
+      );
     });
 
-    // Here I've corrected filtering from a - to b alphabetical order, the same about salary, age and date
+    // 2) Sort
     const sorted = filtered.sort((a, b) => {
-      if (sortKey === "name") {
-        return sortOrder === "asc"
-            ? a.user.name.localeCompare(b.user.name)
-            : b.user.name.localeCompare(a.user.name);
-      }
-      if (sortKey === "salary") {
-        const salaryA = Number.parseInt(a.salary.replace(/\$|,/g, ""));
-        const salaryB = Number.parseInt(b.salary.replace(/\$|,/g, ""));
-        return sortOrder === "asc" ? salaryA - salaryB : salaryB - salaryA;
-      }
-      if (sortKey === "age") {
-        return sortOrder === "asc" ? a.age - b.age : b.age - a.age;
-      }
-      if (sortKey === "date") {
-        // parce data
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
+      if (sortKey === "birthday" || sortKey === "lastSession") {
+        // Compare as dates
+        const dateA = new Date(a[sortKey]);
+        const dateB = new Date(b[sortKey]);
         return sortOrder === "asc"
             ? dateA.getTime() - dateB.getTime()
             : dateB.getTime() - dateA.getTime();
+      } else {
+        // Compare as strings
+        const aValue = String(a[sortKey]).toLowerCase();
+        const bValue = String(b[sortKey]).toLowerCase();
+        return sortOrder === "asc"
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
       }
-      return sortOrder === "asc"
-          ? String(a[sortKey]).localeCompare(String(b[sortKey]))
-          : String(b[sortKey]).localeCompare(String(a[sortKey]));
     });
 
     return sorted;
-  }, [sortKey, sortOrder, searchTerm]);
+  }, [tableRowData, sortKey, sortOrder, searchTerm]);
 
+  // Pagination logic
   const totalItems = filteredAndSortedData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentData = filteredAndSortedData.slice(startIndex, endIndex);
 
+  // Handlers
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -215,13 +136,11 @@ export default function DataTableOne() {
     }
   };
 
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentData = filteredAndSortedData.slice(startIndex, endIndex);
-
   return (
       <div className="overflow-hidden bg-white dark:bg-white/[0.03] rounded-xl">
+        {/* Top Bar: Items per page & Search */}
         <div className="flex flex-col gap-2 px-4 py-4 border border-b-0 border-gray-100 dark:border-white/[0.05] rounded-t-xl sm:flex-row sm:items-center sm:justify-between">
+          {/* Items per page */}
           <div className="flex items-center gap-3">
             <span className="text-gray-500 dark:text-gray-400"> Show </span>
             <div className="relative z-20 bg-transparent">
@@ -262,6 +181,7 @@ export default function DataTableOne() {
             <span className="text-gray-500 dark:text-gray-400"> entries </span>
           </div>
 
+          {/* Search */}
           <div className="relative">
             <button className="absolute text-gray-500 -translate-y-1/2 left-4 top-1/2 dark:text-gray-400">
               <svg
@@ -294,96 +214,110 @@ export default function DataTableOne() {
           </div>
         </div>
 
+        {/* Table */}
         <div className="max-w-full overflow-x-auto custom-scrollbar">
-          <div>
-            <Table>
-              <TableHeader className="border-t border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  {[
-                    { key: "name", label: "Client" },
-                    { key: "position", label: "Issue" },
-                    { key: "location", label: "City" },
-                    { key: "age", label: "Age" },
-                    { key: "date", label: "Start Date" },
-                    { key: "salary", label: "Salary" },
-                  ].map(({ key, label }) => (
-                      <TableCell
-                          key={key}
-                          isHeader
-                          className="px-4 py-3 border border-gray-100 dark:border-white/[0.05]"
+          <Table>
+            <TableHeader className="border-t border-gray-100 dark:border-white/[0.05]">
+              <TableRow>
+                {[
+                  { key: "avatar", label: "Avatar", sortable: false },
+                  { key: "firstName", label: "First Name", sortable: true },
+                  { key: "lastName", label: "Last Name", sortable: true },
+                  { key: "email", label: "Email", sortable: true },
+                  { key: "birthday", label: "Birthday", sortable: true },
+                  { key: "lastSession", label: "Last Session", sortable: true },
+                ].map(({ key, label, sortable }) => (
+                    <TableCell
+                        key={key}
+                        isHeader
+                        className="px-4 py-3 border border-gray-100 dark:border-white/[0.05]"
+                    >
+                      <div
+                          className={`flex items-center ${
+                              sortable ? "justify-between cursor-pointer" : ""
+                          }`}
+                          onClick={() => sortable && handleSort(key as SortKey)}
                       >
-                        <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => handleSort(key as SortKey)}
-                        >
-                          <p className="font-medium text-gray-700 text-theme-xs dark:text-gray-400">
-                            {label}
-                          </p>
-                          <button className="flex flex-col gap-0.5">
-                            <AngleUpIcon
-                                className={`text-gray-300 dark:text-gray-700 ${
-                                    sortKey === key && sortOrder === "asc"
-                                        ? "text-brand-500"
-                                        : ""
-                                }`}
-                            />
-                            <AngleDownIcon
-                                className={`text-gray-300 dark:text-gray-700 ${
-                                    sortKey === key && sortOrder === "desc"
-                                        ? "text-brand-500"
-                                        : ""
-                                }`}
-                            />
-                          </button>
-                        </div>
-                      </TableCell>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {currentData.map((item, i) => (
-                    <TableRow key={i + 1}>
-                      <TableCell className="px-4 py-3 border border-gray-100 dark:border-white/[0.05] whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 overflow-hidden rounded-full">
-
-                            <Link to="/client" className="inline-block">
-                              <img
-                                  src={item.user.image}
-                                  className="size-10"
-                                  alt="user"
+                        <p className="font-medium text-gray-700 text-theme-xs dark:text-gray-400">
+                          {label}
+                        </p>
+                        {sortable && (
+                            <button className="flex flex-col gap-0.5">
+                              <AngleUpIcon
+                                  className={`text-gray-300 dark:text-gray-700 ${
+                                      sortKey === key && sortOrder === "asc"
+                                          ? "text-brand-500"
+                                          : ""
+                                  }`}
                               />
-                            </Link>
-                          </div>
-                          <div>
-                        <span className="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                          {item.user.name}
-                        </span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
-                        {item.position}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
-                        {item.location}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
-                        {item.age}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
-                        {item.date}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
-                        {item.salary}
-                      </TableCell>
-                    </TableRow>
+                              <AngleDownIcon
+                                  className={`text-gray-300 dark:text-gray-700 ${
+                                      sortKey === key && sortOrder === "desc"
+                                          ? "text-brand-500"
+                                          : ""
+                                  }`}
+                              />
+                            </button>
+                        )}
+                      </div>
+                    </TableCell>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {currentData.map((item) => (
+                  <TableRow key={item.id}>
+                    {/* Avatar */}
+                    <TableCell className="px-4 py-3 border border-gray-100 dark:border-white/[0.05] whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 overflow-hidden rounded-full">
+                          <Link to="/userprofile">
+                            <img
+                                src={item.avatar}
+                                className="size-10"
+                                alt="avatar"
+                            />
+                          </Link>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    {/* First Name */}
+                    <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
+                      {item.firstName}
+                    </TableCell>
+
+                    {/* Last Name */}
+                    <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
+                      {item.lastName}
+                    </TableCell>
+
+                    {/* Email */}
+                    <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
+                      {item.email}
+                    </TableCell>
+
+                    {/* Birthday */}
+                    <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
+                      {item.birthday
+                          ? new Date(item.birthday).toLocaleDateString()
+                          : ""}
+                    </TableCell>
+
+                    {/* Last Session */}
+                    <TableCell className="px-4 py-3 font-normal dark:text-gray-400/90 text-gray-800 border border-gray-100 dark:border-white/[0.05] text-theme-sm whitespace-nowrap">
+                      {item.lastSession
+                          ? new Date(item.lastSession).toLocaleString()
+                          : ""}
+                    </TableCell>
+                  </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
 
+        {/* Footer: Pagination */}
         <div className="border border-t-0 rounded-b-xl border-gray-100 py-4 pl-[18px] pr-4 dark:border-white/[0.05]">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between">
             {/* Left side: Showing entries */}

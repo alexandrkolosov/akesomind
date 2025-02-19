@@ -5,8 +5,21 @@ import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
 
+// Example: if you need checkboxes for booleans
+function Checkbox({
+                    checked,
+                    onChange,
+                    ...props
+                  }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="checkbox" checked={checked} onChange={onChange} {...props} />;
+}
+
 export default function UserInfoCard() {
   const { isOpen, openModal, closeModal } = useModal();
+
+  // The data you receive from your GET endpoint
+  // should align with your UpdateUser class
+  // (or at least not break if fields are missing).
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,6 +51,8 @@ export default function UserInfoCard() {
 
     fetchUserDetails();
   }, []);
+
+  // PUT request to save changes
   const handleSave = async () => {
     try {
       const response = await fetch("https://api.akesomind.com/api/user", {
@@ -48,7 +63,11 @@ export default function UserInfoCard() {
         credentials: "include", // Include cookies in the PUT request
         body: JSON.stringify({
           ...profileData,
-          zoneId: { id: profileData.zoneId?.id || "" },
+          // If your backend expects `zoneId` as an object with "id"
+          // this is correct. Otherwise, adjust as needed.
+          zoneId: {
+            id: profileData.zoneId?.id || "UTC",
+          },
         }),
       });
       if (response.ok) {
@@ -111,10 +130,74 @@ export default function UserInfoCard() {
               </div>
               <div>
                 <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  Account Type
+                  Dark Theme
                 </p>
                 <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {profileData.accountType}
+                  {profileData.darkTheme ? "Yes" : "No"}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Language
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.language || ""}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Mute Notifications
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.muteNotifications ? "Yes" : "No"}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Birthday
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.birthday || ""}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Phone
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.phone || ""}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Education
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.education || ""}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Experience
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.experience || ""}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Approach
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.approach || ""}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Photo ID
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.photoId ?? ""}
                 </p>
               </div>
               <div>
@@ -123,30 +206,6 @@ export default function UserInfoCard() {
                 </p>
                 <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                   {profileData.zoneId?.id || ""}
-                </p>
-              </div>
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  Phone
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {profileData.phone}
-                </p>
-              </div>
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  Education
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {profileData.education}
-                </p>
-              </div>
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  Experience
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {profileData.experience}
                 </p>
               </div>
             </div>
@@ -187,96 +246,153 @@ export default function UserInfoCard() {
             <form className="flex flex-col">
               <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
-                  <div>
-                    <Label>ID</Label>
-                    <Input
-                        type="text"
-                        value={profileData.id}
-                        onChange={(e) =>
-                            setProfileData({ ...profileData, id: e.target.value })
-                        }
-                    />
-                  </div>
+                  {/* Email */}
                   <div>
                     <Label>Email</Label>
                     <Input
                         type="email"
-                        value={profileData.email}
+                        value={profileData.email || ""}
                         onChange={(e) =>
                             setProfileData({ ...profileData, email: e.target.value })
                         }
                     />
                   </div>
+                  {/* First Name */}
                   <div>
                     <Label>First Name</Label>
                     <Input
                         type="text"
-                        value={profileData.firstName}
+                        value={profileData.firstName || ""}
                         onChange={(e) =>
                             setProfileData({ ...profileData, firstName: e.target.value })
                         }
                     />
                   </div>
+                  {/* Last Name */}
                   <div>
                     <Label>Last Name</Label>
                     <Input
                         type="text"
-                        value={profileData.lastName}
+                        value={profileData.lastName || ""}
                         onChange={(e) =>
                             setProfileData({ ...profileData, lastName: e.target.value })
                         }
                     />
                   </div>
+                  {/* Dark Theme */}
                   <div>
-                    <Label>Account Type</Label>
-                    <Input
-                        type="text"
-                        value={profileData.accountType}
+                    <Label>Dark Theme</Label>
+                    <Checkbox
+                        checked={profileData.darkTheme || false}
                         onChange={(e) =>
-                            setProfileData({ ...profileData, accountType: e.target.value })
+                            setProfileData({ ...profileData, darkTheme: e.target.checked })
                         }
                     />
                   </div>
+                  {/* Language */}
                   <div>
-                    <Label>Zone ID</Label>
+                    <Label>Language</Label>
                     <Input
                         type="text"
-                        value={profileData.zoneId?.id || ""}
+                        value={profileData.language || ""}
+                        onChange={(e) =>
+                            setProfileData({ ...profileData, language: e.target.value })
+                        }
+                    />
+                  </div>
+                  {/* Mute Notifications */}
+                  <div>
+                    <Label>Mute Notifications</Label>
+                    <Checkbox
+                        checked={profileData.muteNotifications || false}
                         onChange={(e) =>
                             setProfileData({
                               ...profileData,
-                              zoneId: { id: e.target.value },
+                              muteNotifications: e.target.checked,
                             })
                         }
                     />
                   </div>
+                  {/* Birthday */}
+                  <div>
+                    <Label>Birthday</Label>
+                    <Input
+                        type="datetime-local"
+                        value={profileData.birthday || ""}
+                        onChange={(e) =>
+                            setProfileData({ ...profileData, birthday: e.target.value })
+                        }
+                    />
+                  </div>
+                  {/* Phone */}
                   <div>
                     <Label>Phone</Label>
                     <Input
                         type="text"
-                        value={profileData.phone}
+                        value={profileData.phone || ""}
                         onChange={(e) =>
                             setProfileData({ ...profileData, phone: e.target.value })
                         }
                     />
                   </div>
+                  {/* Education */}
                   <div>
                     <Label>Education</Label>
                     <Input
                         type="text"
-                        value={profileData.education}
+                        value={profileData.education || ""}
                         onChange={(e) =>
                             setProfileData({ ...profileData, education: e.target.value })
                         }
                     />
                   </div>
+                  {/* Experience */}
                   <div>
                     <Label>Experience</Label>
                     <Input
                         type="text"
-                        value={profileData.experience}
+                        value={profileData.experience || ""}
                         onChange={(e) =>
                             setProfileData({ ...profileData, experience: e.target.value })
+                        }
+                    />
+                  </div>
+                  {/* Approach */}
+                  <div>
+                    <Label>Approach</Label>
+                    <Input
+                        type="text"
+                        value={profileData.approach || ""}
+                        onChange={(e) =>
+                            setProfileData({ ...profileData, approach: e.target.value })
+                        }
+                    />
+                  </div>
+                  {/* Photo ID */}
+                  <div>
+                    <Label>Photo ID</Label>
+                    <Input
+                        type="number"
+                        value={profileData.photoId ?? 0}
+                        onChange={(e) =>
+                            setProfileData({
+                              ...profileData,
+                              photoId: parseInt(e.target.value) || 0,
+                            })
+                        }
+                    />
+                  </div>
+                  {/* Zone ID */}
+                  <div>
+                    <Label>Zone ID</Label>
+                    <Input
+                        type="text"
+                        value={profileData.zoneId?.id || "UTC"}
+                        onChange={(e) =>
+                            setProfileData({
+                              ...profileData,
+                              zoneId: { id: e.target.value },
+                            })
                         }
                     />
                   </div>
