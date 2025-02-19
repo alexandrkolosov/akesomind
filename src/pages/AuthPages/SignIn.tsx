@@ -31,9 +31,10 @@ export default function SignIn() {
       const response = await fetch("https://api.akesomind.com/api/public/user/token", {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded", // Updated header
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: params.toString(), // Use URL-encoded string
+        credentials: "include", // Include cookies in the request
+        body: params.toString(),
       });
 
       if (response.ok) {
