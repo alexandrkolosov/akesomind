@@ -23,7 +23,7 @@ export {};
 
 // API request for client registration
 async function createClient(clientData: ClientData): Promise<Response> {
-    return fetch("https://api.akesomind.com/api/user/createUser", {
+    return fetch("https://api.akesomind.com/api/user", {
         method: "POST",
         mode: "cors", // ensure using CORS mode
         credentials: "include", // send cookies along with the request
