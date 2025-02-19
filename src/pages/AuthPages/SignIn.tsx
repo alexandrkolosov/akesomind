@@ -28,7 +28,7 @@ export default function SignIn() {
     params.append("password", password);
 
     try {
-      const response = await fetch("https://api.mentalcrm.ru/api/public/user/token", {
+      const response = await fetch("https://api.akesomind.com/api/public/user/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded", // Updated header
