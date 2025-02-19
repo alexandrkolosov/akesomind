@@ -38,8 +38,8 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
     const [lastName, setLastName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    // Pre-populated; not editable:
-    const therapistCode = "ABC123";
+    // Now allow manual entry for therapist code (required)
+    const [therapistCode, setTherapistCode] = useState("");
     // Now allow the user to select the type
     const [userType, setUserType] = useState("Client");
     const [zoneId, setZoneId] = useState("");
@@ -47,8 +47,15 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         // Validate required fields
-        if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim() || !userType.trim()) {
-            alert("Please fill in the required fields: First Name, Last Name, Email, Password, and Type");
+        if (
+            !firstName.trim() ||
+            !lastName.trim() ||
+            !email.trim() ||
+            !password.trim() ||
+            !userType.trim() ||
+            !therapistCode.trim()
+        ) {
+            alert("Please fill in all required fields: First Name, Last Name, Email, Password, Type, and Therapist Code");
             return;
         }
         const clientData: ClientData = {
@@ -75,6 +82,7 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
                 setEmail("");
                 setPassword("");
                 setUserType("Client");
+                setTherapistCode("");
                 setZoneId("");
             } else if (response.status === 400) {
                 alert("Error: Email is already taken or the therapist code is incorrect.");
@@ -148,15 +156,17 @@ export default function CreateClientModal({ isOpen, onClose }: AddClientModalPro
                                 onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
-                        {/* Therapist Code (Pre-populated, read-only) */}
+                        {/* Therapist Code (Required) */}
                         <div>
-                            <Label htmlFor="therapistCode">Therapist Code</Label>
+                            <Label htmlFor="therapistCode">
+                                Therapist Code <span className="text-red-500">*</span>
+                            </Label>
                             <Input
                                 type="text"
-                                placeholder="Therapist Code"
+                                placeholder="Enter therapist code"
                                 id="therapistCode"
                                 value={therapistCode}
-                                disabled
+                                onChange={(e) => setTherapistCode(e.target.value)}
                             />
                         </div>
                         {/* Type (Required) */}
