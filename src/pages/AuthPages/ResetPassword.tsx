@@ -126,7 +126,7 @@ export default function ResetPassword() {
                   <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
                     Wait, I remember my password...{" "}
                     <Link
-                        to="#"
+                        to="/signin"
                         className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                     >
                       Click here
@@ -144,7 +144,7 @@ export default function ResetPassword() {
                 <img src="./images/logo/auth-logo.svg" alt="Logo" />
               </Link>
               <p className="text-center text-gray-400 dark:text-white/60">
-                #1 CRM For Mental Health Specialists
+                CRM For Mental Health Specialists
               </p>
             </div>
           </div>

@@ -76,8 +76,8 @@ export default function SignUp() {
   return (
       <>
         <PageMeta
-            title="React.js SignUp Dashboard | TailAdmin - Next.js Admin Dashboard Template"
-            description="This is the React.js SignUp page for the TailAdmin dashboard template."
+            title="AkesoMind - Registration"
+            description="Register your CRM for Mental Health Specialists."
         />
         <div className="relative flex w-full min-h-screen bg-white z-1 dark:bg-gray-900">
           <div className="flex flex-col flex-1 p-6 rounded-2xl sm:rounded-none sm:border-0 sm:p-8 overflow-y-auto">
@@ -333,12 +333,12 @@ export default function SignUp() {
           </div>
           <div className="relative items-center justify-center flex-1 hidden p-8 z-1 bg-brand-950 dark:bg-white/5 lg:flex">
             <GridShape />
-            <div className="flex flex-col items-center max-w-xs">
+            <div className="flex flex-col items-center max-w-sm">
               <Link to="/index.html" className="block mb-4">
                 <img src="./images/logo/auth-logo.svg" alt="Logo" />
               </Link>
               <p className="text-center text-gray-400 dark:text-white/60">
-                Free and Open-Source Tailwind CSS Admin Dashboard Template
+                CRM for Mental Health Specialists
               </p>
             </div>
           </div>
