@@ -21,13 +21,19 @@ export default function SignIn() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // Encode the body using URLSearchParams
+    const params = new URLSearchParams();
+    params.append("email", email);
+    params.append("password", password);
+
     try {
       const response = await fetch("https://api.mentalcrm.ru/api/public/user/token", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded", // Updated header
         },
-        body: JSON.stringify({ email, password }),
+        body: params.toString(), // Use URL-encoded string
       });
 
       if (response.ok) {
@@ -38,7 +44,6 @@ export default function SignIn() {
       } else if (response.status === 401) {
         setError("Unauthorized: Please check your credentials.");
       } else {
-        // Optionally, check if the response has content before parsing JSON
         const text = await response.text();
         let errorData;
         try {
