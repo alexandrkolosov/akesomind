@@ -1,6 +1,6 @@
 import React from "react";
 import Home from "./pages/Home/Home";
-import { BrowserRouter as Router, Routes, Route } from "react-router";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Ecommerce from "./pages/Dashboard/Ecommerce";
 import Stocks from "./pages/Dashboard/Stocks";
 import Crm from "./pages/Dashboard/Crm";
@@ -60,12 +60,16 @@ import ResetPassword from "./pages/AuthPages/ResetPassword";
 import TwoStepVerification from "./pages/AuthPages/TwoStepVerification";
 import Success from "./pages/OtherPage/Success";
 import AppLayout from "./layout/AppLayout";
+import ClientProfileTabs from "./components/clientprofile/ClientProfileTabs";
+import Client from "./pages/OtherPage/Client";
+
 
 export default function App() {
   return (
     <>
       <Router>
         <Routes>
+
           {/* Dashboard Layout */}
           <Route element={<AppLayout />}>
             <Route index path="/" element={<Home />} />
@@ -78,6 +82,11 @@ export default function App() {
             <Route path="/faq" element={<Faqs />} />
             <Route path="/pricing-tables" element={<PricingTables />} />
             <Route path="/blank" element={<Blank />} />
+            <Route
+                path="/client/:id"
+                element={<Client />}
+            />
+
 
             {/* Forms */}
             <Route path="/form-elements" element={<FormElements />} />

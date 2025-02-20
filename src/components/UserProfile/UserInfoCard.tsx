@@ -5,6 +5,11 @@ import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
 
+interface UserInfoCardProps {
+  clientId?: string;
+}
+
+
 // Example: if you need checkboxes for booleans
 function Checkbox({
                     checked,
@@ -14,32 +19,33 @@ function Checkbox({
   return <input type="checkbox" checked={checked} onChange={onChange} {...props} />;
 }
 
-export default function UserInfoCard() {
+export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   const { isOpen, openModal, closeModal } = useModal();
-
-  // The data you receive from your GET endpoint
-  // should align with your UpdateUser class
-  // (or at least not break if fields are missing).
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // GET user details on component mount
   useEffect(() => {
-    const fetchUserDetails = async () => {
+    const fetchDetails = async () => {
       try {
-        const response = await fetch("https://api.akesomind.com/api/user", {
+        const url = clientId
+            ? `https://api.akesomind.com/api/therapist/clients/${clientId}`
+            : "https://api.akesomind.com/api/user";
+
+        const response = await fetch(url, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
           },
-          credentials: "include", // Ensure cookies are sent
+          credentials: "include",
         });
+
         if (response.ok) {
           const data = await response.json();
           setProfileData(data);
         } else {
-          setError("Failed to fetch user details.");
+          setError("Failed to fetch details.");
         }
       } catch (err) {
         console.error(err);
@@ -49,8 +55,8 @@ export default function UserInfoCard() {
       }
     };
 
-    fetchUserDetails();
-  }, []);
+    fetchDetails();
+  }, [clientId]);
 
   // PUT request to save changes
   const handleSave = async () => {

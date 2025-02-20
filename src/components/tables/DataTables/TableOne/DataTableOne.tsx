@@ -272,7 +272,7 @@ export default function DataTableOne() {
                     <TableCell className="px-4 py-3 border border-gray-100 dark:border-white/[0.05] whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 overflow-hidden rounded-full">
-                          <Link to="/userprofile">
+                          <Link to={`/client/${item.id}`}>
                             <img
                                 src={item.avatar}
                                 className="size-10"
