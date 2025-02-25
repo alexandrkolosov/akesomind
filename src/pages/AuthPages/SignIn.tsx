@@ -7,6 +7,7 @@ import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Checkbox from "../../components/form/input/Checkbox";
 import Button from "../../components/ui/button/Button";
 import PageMeta from "../../components/common/PageMeta";
+import { login } from "../../utils/auth";
 
 export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
@@ -19,45 +20,25 @@ export default function SignIn() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
 
-    // Encode the body using URLSearchParams
-    const params = new URLSearchParams();
-    params.append("email", email);
-    params.append("password", password);
+    console.log('SignIn: Attempting login with email:', email);
 
     try {
-      const response = await fetch("https://api.akesomind.com/api/public/user/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        credentials: "include", // Include cookies in the request
-        body: params.toString(),
-      });
-
-
-      if (response.ok) {
-        // Successful login, redirect or handle token as needed.
+      // Use the login function from our auth utility
+      const result = await login(email, password);
+      
+      if (result.success) {
+        console.log('SignIn: Login successful, navigating to profile page');
         navigate("/profile");
-      } else if (response.status === 403) {
-        setError("Check your password or activate your account");
-      } else if (response.status === 401) {
-        setError("Unauthorized: Please check your credentials.");
       } else {
-        const text = await response.text();
-        let errorData;
-        try {
-          errorData = text ? JSON.parse(text) : {};
-        } catch {
-          errorData = {};
-        }
-        setError(errorData.message || "Failed to sign in");
+        console.log('SignIn: Login failed:', result.error);
+        setError(result.error || "Failed to sign in");
       }
     } catch (err) {
-      console.error(err);
-      setError("An unexpected error occurred.");
+      console.error('SignIn: Unexpected error during login:', err);
+      setError("An unexpected error occurred");
     } finally {
       setLoading(false);
     }

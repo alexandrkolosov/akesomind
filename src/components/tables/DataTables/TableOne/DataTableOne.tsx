@@ -10,7 +10,8 @@ import {
 } from "../../../ui/table";
 import { AngleDownIcon, AngleUpIcon } from "../../../../icons";
 import PaginationWithIcon from "./PaginationWithIcon";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { fetchWithAuth, getUserData, logout } from "../../../../utils/auth";
 
 // Shape of each client item inside the "list"
 interface ClientItem {
@@ -30,14 +31,78 @@ interface ClientItem {
   // };
 }
 
+// Define the request body interface
+interface ClientRequestBody {
+  state: string;
+  pageRequest: { offset: number; limit: number };
+  name?: string; // Optional name property for search
+}
+
 // Sorting keys
 type SortKey = "firstName" | "lastName" | "email" | "birthday" | "lastSession";
 type SortOrder = "asc" | "desc";
 
+// Mock data for development/testing
+const MOCK_CLIENTS: ClientItem[] = [
+  {
+    id: 1,
+    email: "john.doe@example.com",
+    firstName: "John",
+    lastName: "Doe",
+    phone: "+1 (555) 123-4567",
+    birthday: "1985-06-15T00:00:00.000Z",
+    lastSession: "2023-05-10T14:30:00.000Z",
+    avatar: "/images/user/user-01.png"
+  },
+  {
+    id: 2,
+    email: "jane.smith@example.com",
+    firstName: "Jane",
+    lastName: "Smith",
+    phone: "+1 (555) 987-6543",
+    birthday: "1990-03-22T00:00:00.000Z",
+    lastSession: "2023-05-15T10:00:00.000Z",
+    avatar: "/images/user/user-02.png"
+  },
+  {
+    id: 3,
+    email: "michael.johnson@example.com",
+    firstName: "Michael",
+    lastName: "Johnson",
+    phone: "+1 (555) 456-7890",
+    birthday: "1978-11-30T00:00:00.000Z",
+    lastSession: "2023-05-12T16:15:00.000Z",
+    avatar: "/images/user/user-03.png"
+  },
+  {
+    id: 4,
+    email: "emily.williams@example.com",
+    firstName: "Emily",
+    lastName: "Williams",
+    phone: "+1 (555) 789-0123",
+    birthday: "1992-08-05T00:00:00.000Z",
+    lastSession: "2023-05-08T09:30:00.000Z",
+    avatar: "/images/user/user-04.png"
+  },
+  {
+    id: 5,
+    email: "david.brown@example.com",
+    firstName: "David",
+    lastName: "Brown",
+    phone: "+1 (555) 234-5678",
+    birthday: "1983-04-17T00:00:00.000Z",
+    lastSession: "2023-05-11T13:45:00.000Z",
+    avatar: "/images/user/user-05.png"
+  }
+];
+
 export default function DataTableOne() {
+  const navigate = useNavigate();
   // State to hold the array of client items
   const [tableRowData, setTableRowData] = useState<ClientItem[]>([]);
-
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  
   // State for pagination, sorting, and searching
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -45,82 +110,99 @@ export default function DataTableOne() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch data on component mount
+  // Update the state definitions
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Check user role on component mount
+  useEffect(() => {
+    const userData = getUserData();
+    if (userData && userData.role) {
+      setUserRole(userData.role);
+    }
+  }, []);
+
+  // Fetch data on component mount and when dependencies change
   useEffect(() => {
     const fetchClients = async () => {
+      setIsLoading(true);
+      
       try {
-        const response = await fetch("https://api.akesomind.com/api/therapist/clients", {
-          method: "GET",
-          credentials: "include", // Include cookies if your backend uses cookie-based auth
+        // First, check if we can access the user profile to verify our session
+        const profileResponse = await fetch('https://api.akesomind.com/api/user', {
+          credentials: 'include'
         });
-        if (!response.ok) {
-          throw new Error("Failed to fetch clients");
+        
+        if (profileResponse.status === 401) {
+          setError("Your session has expired. Please log in again to continue.");
+          setIsLoading(false);
+          return;
         }
-
-        // The returned JSON structure:
-        // {
-        //   "list": [... array of client items ...],
-        //   "total": 0
-        // }
-        const data = await response.json();
-
-        // Extract the list of clients from data.list
-        setTableRowData(data.list || []);
-        // If you need the total from the server, you can store data.total in a separate state
-        // or simply rely on local filtering/sorting as shown below.
-      } catch (error) {
-        console.error(error);
+        
+        // Simple GET request with no parameters
+        const simpleResponse = await fetch('https://api.akesomind.com/api/therapist/clients', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        
+        if (simpleResponse.ok) {
+          const data = await simpleResponse.json();
+          
+          // Extract the data based on the response structure
+          if (data.list && Array.isArray(data.list)) {
+            setTableRowData(data.list);
+            setTotalItems(data.total || data.list.length);
+          } else if (Array.isArray(data)) {
+            setTableRowData(data);
+            setTotalItems(data.length);
+          }
+        } else {
+          // If simple request failed, try with just the state parameter
+          const stateOnlyUrl = new URL("https://api.akesomind.com/api/therapist/clients");
+          stateOnlyUrl.searchParams.append("state", "all");
+          
+          const stateOnlyResponse = await fetch(stateOnlyUrl.toString(), {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json',
+            }
+          });
+          
+          if (stateOnlyResponse.ok) {
+            const data = await stateOnlyResponse.json();
+            
+            // Extract the data based on the response structure
+            if (data.list && Array.isArray(data.list)) {
+              setTableRowData(data.list);
+              setTotalItems(data.total || data.list.length);
+            } else if (Array.isArray(data)) {
+              setTableRowData(data);
+              setTotalItems(data.length);
+            }
+          } else {
+            setError("Unable to load client data. Please try again later.");
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching clients:', err);
+        setError("An error occurred while loading client data. Please try again later.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchClients();
-  }, []);
+  }, [currentPage, itemsPerPage, searchTerm]);
 
-  // Filter and sort data
-  const filteredAndSortedData = useMemo(() => {
-    const lowerSearchTerm = searchTerm.toLowerCase();
-
-    // 1) Filter by any relevant field
-    const filtered = tableRowData.filter((item) => {
-      const { avatar, firstName, lastName, email, birthday, lastSession } = item;
-      return (
-          avatar?.toLowerCase().includes(lowerSearchTerm) ||
-          firstName?.toLowerCase().includes(lowerSearchTerm) ||
-          lastName?.toLowerCase().includes(lowerSearchTerm) ||
-          email?.toLowerCase().includes(lowerSearchTerm) ||
-          birthday?.toLowerCase().includes(lowerSearchTerm) ||
-          lastSession?.toLowerCase().includes(lowerSearchTerm)
-      );
-    });
-
-    // 2) Sort
-    const sorted = filtered.sort((a, b) => {
-      if (sortKey === "birthday" || sortKey === "lastSession") {
-        // Compare as dates
-        const dateA = new Date(a[sortKey]);
-        const dateB = new Date(b[sortKey]);
-        return sortOrder === "asc"
-            ? dateA.getTime() - dateB.getTime()
-            : dateB.getTime() - dateA.getTime();
-      } else {
-        // Compare as strings
-        const aValue = String(a[sortKey]).toLowerCase();
-        const bValue = String(b[sortKey]).toLowerCase();
-        return sortOrder === "asc"
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-      }
-    });
-
-    return sorted;
-  }, [tableRowData, sortKey, sortOrder, searchTerm]);
-
-  // Pagination logic
-  const totalItems = filteredAndSortedData.length;
+  // Pagination logic - simplified since backend handles pagination
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentData = filteredAndSortedData.slice(startIndex, endIndex);
+  const currentData = tableRowData; // Use data directly from the API
 
   // Handlers
   const handlePageChange = (page: number) => {
@@ -136,8 +218,36 @@ export default function DataTableOne() {
     }
   };
 
+  // Handle logout and redirect to login
+  const handleLoginRedirect = () => {
+    logout(); // Clear any existing auth data
+    navigate('/signin');
+  };
+
   return (
       <div className="overflow-hidden bg-white dark:bg-white/[0.03] rounded-xl">
+        {/* Show error if there is one */}
+        {error && (
+          <div className="p-4 m-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded">
+            <p className="mb-3">{error}</p>
+            {error.includes("session has expired") && (
+              <button 
+                onClick={handleLoginRedirect}
+                className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
+              >
+                Go to Login Page
+              </button>
+            )}
+          </div>
+        )}
+        
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="flex justify-center items-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-500"></div>
+          </div>
+        )}
+
         {/* Top Bar: Items per page & Search */}
         <div className="flex flex-col gap-2 px-4 py-4 border border-b-0 border-gray-100 dark:border-white/[0.05] rounded-t-xl sm:flex-row sm:items-center sm:justify-between">
           {/* Items per page */}
@@ -266,7 +376,8 @@ export default function DataTableOne() {
             </TableHeader>
 
             <TableBody>
-              {currentData.map((item) => (
+              {currentData.length > 0 ? (
+                currentData.map((item) => (
                   <TableRow key={item.id}>
                     {/* Avatar */}
                     <TableCell className="px-4 py-3 border border-gray-100 dark:border-white/[0.05] whitespace-nowrap">
@@ -274,7 +385,7 @@ export default function DataTableOne() {
                         <div className="w-10 h-10 overflow-hidden rounded-full">
                           <Link to="/userprofile">
                             <img
-                                src={item.avatar}
+                                src={item.avatar || "/images/user/user-01.png"}
                                 className="size-10"
                                 alt="avatar"
                             />
@@ -312,7 +423,18 @@ export default function DataTableOne() {
                           : ""}
                     </TableCell>
                   </TableRow>
-              ))}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell 
+                    className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/[0.05]"
+                  >
+                    <div className="w-full text-center" style={{ gridColumn: 'span 6 / span 6' }}>
+                      {isLoading ? "Loading clients..." : error ? "Error loading clients" : "No clients found"}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
@@ -323,14 +445,18 @@ export default function DataTableOne() {
             {/* Left side: Showing entries */}
             <div className="pb-3 xl:pb-0">
               <p className="pb-3 text-sm font-medium text-center text-gray-500 border-b border-gray-100 dark:border-gray-800 dark:text-gray-400 xl:border-b-0 xl:pb-0 xl:text-left">
-                Showing {startIndex + 1} to {endIndex} of {totalItems} entries
+                {totalItems > 0 
+                  ? `Showing ${startIndex + 1} to ${endIndex} of ${totalItems} entries` 
+                  : "No entries to display"}
               </p>
             </div>
-            <PaginationWithIcon
+            {totalPages > 0 && (
+              <PaginationWithIcon
                 totalPages={totalPages}
                 initialPage={currentPage}
                 onPageChange={handlePageChange}
-            />
+              />
+            )}
           </div>
         </div>
       </div>

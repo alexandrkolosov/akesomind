@@ -1,6 +1,6 @@
 import React from "react";
 import Home from "./pages/Home/Home";
-import { BrowserRouter as Router, Routes, Route } from "react-router";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Ecommerce from "./pages/Dashboard/Ecommerce";
 import Stocks from "./pages/Dashboard/Stocks";
 import Crm from "./pages/Dashboard/Crm";
@@ -60,18 +60,31 @@ import ResetPassword from "./pages/AuthPages/ResetPassword";
 import TwoStepVerification from "./pages/AuthPages/TwoStepVerification";
 import Success from "./pages/OtherPage/Success";
 import AppLayout from "./layout/AppLayout";
+import ProtectedRoute from "./utils/ProtectedRoute";
 
 export default function App() {
   return (
     <>
       <Router>
         <Routes>
-          {/* Dashboard Layout */}
-          <Route element={<AppLayout />}>
+          {/* Auth Layout */}
+          <Route element={<AuthLayout />}>
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route
+              path="/two-step-verification"
+              element={<TwoStepVerification />}
+            />
+          </Route>
+
+          {/* Dashboard Layout - Protected */}
+          <Route element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }>
             <Route index path="/" element={<Home />} />
-
-
-            {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/invoice" element={<Invoices />} />
@@ -85,7 +98,6 @@ export default function App() {
 
             {/* Applications */}
             <Route path="/chat" element={<Chats />} />
-
             <Route path="/task-list" element={<TaskList />} />
             <Route path="/task-kanban" element={<TaskKanban />} />
             <Route path="/file-manager" element={<FileManager />} />
@@ -128,17 +140,6 @@ export default function App() {
             <Route path="/line-chart" element={<LineChart />} />
             <Route path="/bar-chart" element={<BarChart />} />
             <Route path="/pie-chart" element={<PieChart />} />
-          </Route>
-
-          {/* Auth Layout */}
-          <Route element={<AuthLayout />}>
-            <Route path="/signin" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route
-              path="/two-step-verification"
-              element={<TwoStepVerification />}
-            />
           </Route>
 
           {/* Fallback Route */}
