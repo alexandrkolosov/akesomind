@@ -19,55 +19,139 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState("Client"); // "Client" or "Therapist"
   const [therapistCode, setTherapistCode] = useState("");
-  const [zoneId, setZoneId] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [zoneId, setZoneId] = useState("UTC"); // Default to UTC
 
   // UI state
   const [error, setError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setValidationErrors({});
+    
+    // Validate form
+    const errors: Record<string, string> = {};
+    
+    if (!firstName.trim()) {
+      errors.firstName = "First name is required";
+    }
+    
+    if (!lastName.trim()) {
+      errors.lastName = "Last name is required";
+    }
+    
+    if (!email.trim()) {
+      errors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = "Email is invalid";
+    }
+    
+    if (!password.trim()) {
+      errors.password = "Password is required";
+    } else if (password.length < 8) {
+      errors.password = "Password must be at least 8 characters";
+    }
+    
+    if (userType === "Client" && !therapistCode.trim()) {
+      errors.therapistCode = "Therapist code is required for clients";
+    }
+    
+    // Note: inviteCode is optional for Therapists, so no validation required
+    
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    
     setLoading(true);
 
-    // Build payload based on user type
+    // Prepare data for API
     const payload: any = {
-      email,
-      firstName,
-      lastName,
-      password,
+      email: email.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      password: password.trim(),
       type: userType,
+      zoneId: zoneId || "UTC" // Default to UTC if not provided
     };
 
-    // Optional field: zoneId (if provided)
-    if (zoneId.trim()) {
-      payload.zoneId = zoneId.trim();
+    // Add therapistCode only if it's provided and user is a Client
+    if (therapistCode.trim() && userType === "Client") {
+      payload.therapistCode = therapistCode.trim();
     }
-
-    // For Client, therapistCode is required
-    if (userType === "Client") {
-      payload.therapistCode = therapistCode;
+    
+    // Add inviteCode only if it's provided and user is a Therapist
+    if (inviteCode.trim() && userType === "Therapist") {
+      payload.inviteCode = inviteCode.trim();
     }
+    
+    console.log("Submitting registration with payload:", payload);
 
     try {
       const response = await fetch("https://api.akesomind.com/api/public/user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json"
         },
         body: JSON.stringify(payload),
       });
 
+      console.log('SignUp: Response status:', response.status);
+      
+      // Log the raw response text for debugging
+      const responseText = await response.text();
+      console.log('SignUp: Raw response:', responseText);
+      
       if (response.ok) {
-        // Redirect to Sign In page (or dashboard) upon successful registration
-        navigate("/signin");
+        // Set a flag in sessionStorage to indicate successful registration
+        sessionStorage.setItem('justRegistered', 'true');
+        
+        // Redirect to Sign In page after a slight delay to allow state to settle
+        setTimeout(() => {
+          navigate("/signin");
+        }, 100);
       } else {
-        const data = await response.json();
-        setError(data.message || "Sign up failed");
+        let errorMessage = "Sign up failed";
+        try {
+          // Try to parse the response as JSON if possible
+          const errorData = JSON.parse(responseText);
+          console.log('SignUp: Parsed error data:', errorData);
+          
+          // Check specifically for "User already exists" error
+          if (errorData.detail === "User already exists") {
+            errorMessage = "An account with this email already exists.";
+            // Set a specific validation error for the email field
+            setValidationErrors({
+              ...validationErrors,
+              email: "This email is already registered. Please sign in instead."
+            });
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+            // Some APIs return errors as an array
+            errorMessage = errorData.errors.map((err: any) => 
+              err.message || err.field + ': ' + err.defaultMessage || JSON.stringify(err)
+            ).join(', ');
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        } catch (parseErr) {
+          // If we can't parse the JSON, use the raw response text
+          console.error('SignUp: Error parsing response:', parseErr);
+          errorMessage = responseText || `Registration failed: ${response.statusText || response.status}`;
+        }
+        console.error('SignUp: Error response:', errorMessage);
+        setError(errorMessage);
       }
     } catch (err) {
-      console.error(err);
-      setError("An unexpected error occurred.");
+      console.error('SignUp: Error during registration:', err);
+      setError("An unexpected error occurred. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -184,7 +268,11 @@ export default function SignUp() {
                             placeholder="Enter your first name"
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
+                            className={validationErrors.firstName ? "border-error-500" : ""}
                         />
+                        {validationErrors.firstName && (
+                          <p className="mt-1 text-xs text-error-500">{validationErrors.firstName}</p>
+                        )}
                       </div>
                       {/* Last Name */}
                       <div className="sm:col-span-1">
@@ -198,7 +286,11 @@ export default function SignUp() {
                             placeholder="Enter your last name"
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
+                            className={validationErrors.lastName ? "border-error-500" : ""}
                         />
+                        {validationErrors.lastName && (
+                          <p className="mt-1 text-xs text-error-500">{validationErrors.lastName}</p>
+                        )}
                       </div>
                     </div>
                     {/* Email */}
@@ -213,7 +305,22 @@ export default function SignUp() {
                           placeholder="Enter your email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
+                          className={validationErrors.email ? "border-error-500" : ""}
                       />
+                      {validationErrors.email && (
+                        <p className="mt-1 text-xs text-error-500">
+                          {validationErrors.email.includes("already registered") ? (
+                            <>
+                              {validationErrors.email.split(".")[0]}. 
+                              <Link to="/signin" className="font-medium text-brand-500 hover:underline">
+                                Sign in here
+                              </Link>.
+                            </>
+                          ) : (
+                            validationErrors.email
+                          )}
+                        </p>
+                      )}
                     </div>
                     {/* Password */}
                     <div>
@@ -226,6 +333,7 @@ export default function SignUp() {
                             type={showPassword ? "text" : "password"}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
+                            className={validationErrors.password ? "border-error-500" : ""}
                         />
                         <span
                             onClick={() => setShowPassword(!showPassword)}
@@ -236,8 +344,11 @@ export default function SignUp() {
                         ) : (
                             <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
                         )}
-                      </span>
+                        </span>
                       </div>
+                      {validationErrors.password && (
+                        <p className="mt-1 text-xs text-error-500">{validationErrors.password}</p>
+                      )}
                     </div>
                     {/* User Type Selector */}
                     <div>
@@ -266,20 +377,55 @@ export default function SignUp() {
                               placeholder="Enter therapist code"
                               value={therapistCode}
                               onChange={(e) => setTherapistCode(e.target.value)}
+                              className={validationErrors.therapistCode ? "border-error-500" : ""}
                           />
+                          {validationErrors.therapistCode && (
+                            <p className="mt-1 text-xs text-error-500">{validationErrors.therapistCode}</p>
+                          )}
+                        </div>
+                    )}
+                    {/* Invite Code: Only if Therapist is selected */}
+                    {userType === "Therapist" && (
+                        <div>
+                          <Label>
+                            Invite Code
+                          </Label>
+                          <Input
+                              type="text"
+                              id="inviteCode"
+                              name="inviteCode"
+                              placeholder="Enter invite code (optional)"
+                              value={inviteCode}
+                              onChange={(e) => setInviteCode(e.target.value)}
+                              className={validationErrors.inviteCode ? "border-error-500" : ""}
+                          />
+                          {validationErrors.inviteCode && (
+                            <p className="mt-1 text-xs text-error-500">{validationErrors.inviteCode}</p>
+                          )}
                         </div>
                     )}
                     {/* Zone ID (Optional) */}
                     <div>
-                      <Label>Zone ID</Label>
-                      <Input
-                          type="text"
-                          id="zoneId"
-                          name="zoneId"
-                          placeholder="Enter zone ID (optional)"
-                          value={zoneId}
+                      <Label>Time Zone</Label>
+                      <select
+                          className="w-full p-2 border rounded text-sm text-gray-800 bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring focus:ring-brand-500/10"
+                          value={zoneId || "UTC"}
                           onChange={(e) => setZoneId(e.target.value)}
-                      />
+                      >
+                          <option value="UTC">UTC</option>
+                          <option value="Europe/London">Europe/London</option>
+                          <option value="Europe/Paris">Europe/Paris</option>
+                          <option value="Europe/Berlin">Europe/Berlin</option>
+                          <option value="America/New_York">America/New_York</option>
+                          <option value="America/Chicago">America/Chicago</option>
+                          <option value="America/Los_Angeles">America/Los_Angeles</option>
+                          <option value="Asia/Tokyo">Asia/Tokyo</option>
+                          <option value="Asia/Shanghai">Asia/Shanghai</option>
+                          <option value="Australia/Sydney">Australia/Sydney</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Select your timezone
+                      </p>
                     </div>
                     {/* Checkbox */}
                     <div className="flex items-center gap-3">

@@ -1,7 +1,7 @@
 import React from "react";
 import ComponentCard from "../../common/ComponentCard";
 import { useModal } from "../../../hooks/useModal";
-import { Modal } from "../../ui/modal";
+import { Modal } from '../../../components/ui/Modal';
 import Button from "../../ui/button/Button";
 
 export default function DefaultModal() {

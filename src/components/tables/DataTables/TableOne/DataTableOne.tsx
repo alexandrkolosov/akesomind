@@ -101,7 +101,8 @@ export default function DataTableOne() {
   // State to hold the array of client items
   const [tableRowData, setTableRowData] = useState<ClientItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>('');
+  const [authDetails, setAuthDetails] = useState<string>('');
   
   // State for pagination, sorting, and searching
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,42 +115,88 @@ export default function DataTableOne() {
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check user role on component mount
   useEffect(() => {
-    const userData = getUserData();
-    if (userData && userData.role) {
-      setUserRole(userData.role);
-    }
+    const fetchUserData = async () => {
+      try {
+        const userData = await getUserData();
+        if (userData && userData.role) {
+          setUserRole(userData.role);
+          setAuthDetails(`Logged in as: ${userData.email || 'Unknown'} (${userData.role || 'No role'})`);
+        } else {
+          setAuthDetails("No user data found in local storage. You may need to log in again.");
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        setAuthDetails("Error fetching user data. Please try logging in again.");
+      }
+    };
+
+    fetchUserData();
   }, []);
 
-  // Fetch data on component mount and when dependencies change
-  useEffect(() => {
-    const fetchClients = async () => {
-      setIsLoading(true);
+  // Function to fetch clients
+  const fetchClients = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const userData = await getUserData();
+      if (!userData) {
+        setError('User data not found. Please log in again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // First, check if we can access the user profile to verify our session
+      const profileResponse = await fetch('https://api.akesomind.com/api/user', {
+        credentials: 'include',
+      });
+
+      if (!profileResponse.ok) {
+        setError('Session expired. Please log in again.');
+        setIsLoading(false);
+        return;
+      }
       
-      try {
-        // First, check if we can access the user profile to verify our session
-        const profileResponse = await fetch('https://api.akesomind.com/api/user', {
-          credentials: 'include'
-        });
-        
-        if (profileResponse.status === 401) {
-          setError("Your session has expired. Please log in again to continue.");
-          setIsLoading(false);
-          return;
+      // Simple GET request with no parameters
+      const simpleResponse = await fetch('https://api.akesomind.com/api/therapist/clients', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
         }
+      });
+      
+      if (simpleResponse.ok) {
+        const data = await simpleResponse.json();
         
-        // Simple GET request with no parameters
-        const simpleResponse = await fetch('https://api.akesomind.com/api/therapist/clients', {
+        // Extract the data based on the response structure
+        if (data.list && Array.isArray(data.list)) {
+          setTableRowData(data.list);
+          setTotalItems(data.total || data.list.length);
+        } else if (Array.isArray(data)) {
+          setTableRowData(data);
+          setTotalItems(data.length);
+        }
+      } else {
+        // If simple request failed, try with just the state parameter
+        const stateOnlyUrl = new URL("https://api.akesomind.com/api/therapist/clients");
+        stateOnlyUrl.searchParams.append("state", "all");
+        
+        const stateOnlyResponse = await fetch(stateOnlyUrl.toString(), {
           method: 'GET',
           credentials: 'include',
           headers: {
             'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store',
+            'Pragma': 'no-cache'
           }
         });
         
-        if (simpleResponse.ok) {
-          const data = await simpleResponse.json();
+        if (stateOnlyResponse.ok) {
+          const data = await stateOnlyResponse.json();
           
           // Extract the data based on the response structure
           if (data.list && Array.isArray(data.list)) {
@@ -160,41 +207,20 @@ export default function DataTableOne() {
             setTotalItems(data.length);
           }
         } else {
-          // If simple request failed, try with just the state parameter
-          const stateOnlyUrl = new URL("https://api.akesomind.com/api/therapist/clients");
-          stateOnlyUrl.searchParams.append("state", "all");
-          
-          const stateOnlyResponse = await fetch(stateOnlyUrl.toString(), {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Accept': 'application/json',
-            }
-          });
-          
-          if (stateOnlyResponse.ok) {
-            const data = await stateOnlyResponse.json();
-            
-            // Extract the data based on the response structure
-            if (data.list && Array.isArray(data.list)) {
-              setTableRowData(data.list);
-              setTotalItems(data.total || data.list.length);
-            } else if (Array.isArray(data)) {
-              setTableRowData(data);
-              setTotalItems(data.length);
-            }
-          } else {
-            setError("Unable to load client data. Please try again later.");
-          }
+          const errorStatus = stateOnlyResponse.status;
+          setError(`Unable to load client data (Error ${errorStatus}). This may be due to permission issues or browser cookie settings. Please try again later or contact support.`);
         }
-      } catch (err) {
-        console.error('Error fetching clients:', err);
-        setError("An error occurred while loading client data. Please try again later.");
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      setError('Failed to fetch clients. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  // Fetch data on component mount and when dependencies change
+  useEffect(() => {
     fetchClients();
   }, [currentPage, itemsPerPage, searchTerm]);
 
@@ -224,20 +250,38 @@ export default function DataTableOne() {
     navigate('/signin');
   };
 
+  // Force refresh the page to reload authentication
+  const handleForceRefresh = () => {
+    window.location.reload();
+  };
+
   return (
       <div className="overflow-hidden bg-white dark:bg-white/[0.03] rounded-xl">
+        {/* Show auth details if there's an error */}
+        {error && authDetails && (
+          <div className="p-4 mx-4 mt-4 text-sm text-blue-700 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 rounded">
+            <p>{authDetails}</p>
+          </div>
+        )}
+        
         {/* Show error if there is one */}
         {error && (
           <div className="p-4 m-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded">
             <p className="mb-3">{error}</p>
-            {error.includes("session has expired") && (
+            <div className="flex flex-wrap gap-3">
               <button 
                 onClick={handleLoginRedirect}
                 className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
               >
                 Go to Login Page
               </button>
-            )}
+              <button 
+                onClick={handleForceRefresh}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+              >
+                Refresh Page
+              </button>
+            </div>
           </div>
         )}
         

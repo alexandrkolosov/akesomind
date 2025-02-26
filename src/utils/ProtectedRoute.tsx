@@ -9,6 +9,7 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -26,13 +27,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         setAuthenticated(false);
       } finally {
         setLoading(false);
+        
+        // Set a short timeout before setting ready state to ensure DOM is ready
+        setTimeout(() => {
+          setIsReady(true);
+          console.log('ProtectedRoute: Component fully initialized and ready');
+        }, 50);
       }
     };
 
     checkAuth();
   }, []);
 
-  if (loading) {
+  if (loading || !isReady) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-500"></div>

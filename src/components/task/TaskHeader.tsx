@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Modal } from "../ui/modal";
+import { Modal } from '../ui/Modal';
 import { useModal } from "../../hooks/useModal";
 import Button from "../ui/button/Button";
 import Label from "../form/Label";

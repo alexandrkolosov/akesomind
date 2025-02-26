@@ -2,7 +2,7 @@ import React from "react";
 import ComponentCard from "../../common/ComponentCard";
 import { useModal } from "../../../hooks/useModal";
 import Button from "../../ui/button/Button";
-import { Modal } from "../../ui/modal";
+import { Modal } from '../../../components/ui/Modal';
 
 export default function VerticallyCenteredModal() {
   const { isOpen, openModal, closeModal } = useModal();
