@@ -15,19 +15,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       console.log('ProtectedRoute: Checking authentication...');
-      
+
       try {
         // Directly verify authentication using our updated logic
         const isVerified = await verifyAuthentication();
         console.log('ProtectedRoute: Authentication verification result:', isVerified);
-        
+
         setAuthenticated(isVerified);
       } catch (error) {
         console.error('ProtectedRoute: Authentication check error:', error);
         setAuthenticated(false);
       } finally {
         setLoading(false);
-        
+
         // Set a short timeout before setting ready state to ensure DOM is ready
         setTimeout(() => {
           setIsReady(true);

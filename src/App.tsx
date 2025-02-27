@@ -86,6 +86,7 @@ export default function App() {
           }>
             <Route index path="/" element={<Home />} />
             <Route path="/profile" element={<UserProfiles />} />
+            <Route path="/profile/:id" element={<UserProfiles />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/invoice" element={<Invoices />} />
             <Route path="/faq" element={<Faqs />} />

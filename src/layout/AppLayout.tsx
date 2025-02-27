@@ -12,13 +12,13 @@ const LayoutContent: React.FC = () => {
   useEffect(() => {
     // Check if user just logged in
     const justLoggedIn = sessionStorage.getItem('justLoggedIn');
-    
+
     // Clear the flag if it exists
     if (justLoggedIn) {
       console.log('AppLayout: Detected fresh login, ensuring clean initialization');
       sessionStorage.removeItem('justLoggedIn');
     }
-    
+
     // Set a short timeout to ensure the DOM is ready
     setTimeout(() => {
       setIsReady(true);
@@ -41,9 +41,8 @@ const LayoutContent: React.FC = () => {
         <Backdrop />
       </div>
       <div
-        className={`flex-1 transition-all duration-300 ease-in-out ${
-          isExpanded || isHovered ? "lg:ml-[290px]" : "lg:ml-[90px]"
-        } ${isMobileOpen ? "ml-0" : ""}`}
+        className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded || isHovered ? "lg:ml-[290px]" : "lg:ml-[90px]"
+          } ${isMobileOpen ? "ml-0" : ""}`}
       >
         <AppHeader />
         <div className="p-4 mx-auto max-w-screen-2xl md:p-6">

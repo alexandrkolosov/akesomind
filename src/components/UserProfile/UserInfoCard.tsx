@@ -10,10 +10,10 @@ import { fetchWithAuth, logout } from "../../utils/auth";
 // Example: if you need checkboxes for booleans
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Checkbox({
-                    checked,
-                    onChange,
-                    ...props
-                  }: React.InputHTMLAttributes<HTMLInputElement>) {
+  checked,
+  onChange,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input type="checkbox" checked={checked} onChange={onChange} {...props} />;
 }
 
@@ -36,20 +36,20 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         console.log('UserInfoCard: No user data in localStorage, cannot verify cache ownership');
         return null;
       }
-      
+
       const currentUserEmail = JSON.parse(userData).email;
       if (!currentUserEmail) {
         console.log('UserInfoCard: No email found in userData, cannot verify cache ownership');
         return null;
       }
-      
+
       // Get cached profile with user-specific key
       const cacheKey = `userProfileData_${currentUserEmail}`;
       const cachedData = localStorage.getItem(cacheKey);
-      
+
       if (cachedData) {
         const parsedData = JSON.parse(cachedData);
-        
+
         // Verify the cached data belongs to the current user
         if (parsedData.email === currentUserEmail) {
           console.log(`UserInfoCard: Found cached profile data for ${currentUserEmail}`);
@@ -84,14 +84,14 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     photoId: 0,
     zoneId: { id: "UTC" }
   });
-  
+
   // Initialize loading to false if we have cached data
   const [loading, setLoading] = useState(!getCachedData());
   const [error, setError] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
-  
+
   // If we have cached data, mark as ready
   useEffect(() => {
     if (getCachedData()) {
@@ -122,15 +122,15 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   const fetchUserDetails = async () => {
     try {
       console.log('UserInfoCard: Fetching user details, initial state:', { isReady, loading });
-      
-      const endpoint = clientId 
-        ? `https://api.akesomind.com/api/user/${clientId}` 
+
+      const endpoint = clientId
+        ? `https://api.akesomind.com/api/user/${clientId}`
         : "https://api.akesomind.com/api/user";
-      
+
       console.log('UserInfoCard: Using API endpoint:', endpoint);
       const data = await fetchWithAuth(endpoint);
       console.log('UserInfoCard: Full API response:', data);
-      
+
       // Check for role/type information in the API response
       if (data && data.type) {
         console.log('UserInfoCard: User type from API:', data.type);
@@ -144,7 +144,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         }
       } else {
         console.log('UserInfoCard: No role/type information in API response, checking localStorage');
-        
+
         // If no role in API data, check localStorage for both type and role
         try {
           const storedData = localStorage.getItem('userData');
@@ -164,7 +164,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
           console.error('UserInfoCard: Error getting role/type from localStorage:', e);
         }
       }
-      
+
       // Normalize zoneId to ensure consistent handling
       let normalizedZoneId;
       if (typeof data.zoneId === 'string') {
@@ -174,22 +174,22 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       } else {
         normalizedZoneId = { id: "UTC" };
       }
-      
+
       // Check if we have avatar data
       console.log('UserInfoCard: Avatar data:', {
         photoId: data.photoId,
         avatar: data.avatar,
         avatarUrl: data.avatarUrl
       });
-      
+
       // Ensure zoneId is properly formatted
       const formattedData = {
         ...data,
         zoneId: normalizedZoneId
       };
-      
+
       console.log('UserInfoCard: Final formatted profile data:', formattedData);
-      
+
       // Store the formatted data in localStorage with user-specific key
       try {
         // Get current user's email for cache key
@@ -204,7 +204,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                 localStorage.removeItem(key);
               }
             });
-            
+
             // Then save current user's data with user-specific key
             const cacheKey = `userProfileData_${userEmail}`;
             localStorage.setItem(cacheKey, JSON.stringify(formattedData));
@@ -214,17 +214,17 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       } catch (e) {
         console.error('UserInfoCard: Error caching profile data:', e);
       }
-      
+
       // Force state updates to happen in the correct order
       if (componentMounted.current) {
         // First update the profile data
         setProfileData(formattedData);
-        
+
         // Then update loading state - CRITICAL FIX HERE
         console.log('UserInfoCard: About to set loading=false');
         setLoading(false);
         console.log('UserInfoCard: About to set isReady=true');
-        setIsReady(true); 
+        setIsReady(true);
         console.log('UserInfoCard: State updates completed');
         setError("");
       }
@@ -270,7 +270,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       console.log('UserInfoCard: Starting data fetch, reset loading=true, isReady=false');
       fetchUserDetails();
     }
-    
+
     // Don't set componentMounted to false on cleanup
     // This allows state updates to complete even if parent temporarily unmounts
     return () => {
@@ -299,10 +299,10 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         }
       }
     };
-    
+
     // Check after a short delay to allow normal loading flow to complete
     const recoveryTimer = setTimeout(checkForDataRecovery, 2000);
-    
+
     return () => {
       clearTimeout(recoveryTimer);
     };
@@ -310,14 +310,14 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
 
   // Add debug logging to track component lifecycle
   useEffect(() => {
-    console.log('UserInfoCard: Component mount/update. Current state:', { 
-      isReady, 
-      loading, 
+    console.log('UserInfoCard: Component mount/update. Current state:', {
+      isReady,
+      loading,
       hasProfileData: Boolean(profileData && profileData.id),
       profileType: profileData?.type || profileData?.role || 'Unknown',
       isCached: Boolean(getCachedData())
     });
-    
+
     return () => {
       // Instead of just logging, ensure we preserve our state
       console.log('UserInfoCard: Component unmounting - preserving data');
@@ -353,52 +353,52 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   // PUT request to save changes
   const handleSave = async () => {
     if (!componentMounted.current) return;
-    
+
     console.log('UserInfoCard: Starting save process');
     setSaveLoading(true);
     setSaveError("");
     setSaveSuccess(false);
-    
+
     try {
       console.log('UserInfoCard: Preparing data for save...');
-      
+
       // Extract zoneId as a plain string - this is what the backend expects
       // The backend uses ZoneId.of(zoneId) where zoneId is a string parameter
-      const zoneIdString = typeof profileData.zoneId === 'object' ? 
-        (profileData.zoneId?.id || "UTC") : 
+      const zoneIdString = typeof profileData.zoneId === 'object' ?
+        (profileData.zoneId?.id || "UTC") :
         (typeof profileData.zoneId === 'string' ? profileData.zoneId : "UTC");
-      
+
       // Record original values for debugging
       console.log('UserInfoCard: Original zoneId value:', profileData.zoneId);
       console.log('UserInfoCard: Extracted zoneId string:', zoneIdString);
-      
+
       // Prepare the request body - with correct shape for zoneId and preserving type field
       const requestBody = {
         ...profileData,
         zoneId: zoneIdString,
       };
-      
+
       // If we received data with type field, preserve it for the API
       if (profileData.type) {
         requestBody.type = profileData.type;
       }
-      
+
       // Remove photoId if it's 0 or null
       if (!requestBody.photoId) {
         delete requestBody.photoId;
       }
-      
+
       // Remove other properties that are not updatable
       delete requestBody.createdAt;
       delete requestBody.updatedAt;
       delete requestBody.avatar;
       delete requestBody.avatarUrl;
-      
+
       console.log('UserInfoCard: Final request body:', JSON.stringify(requestBody, null, 2));
-      
+
       // Stringify for the fetch request
       const bodyString = JSON.stringify(requestBody);
-      
+
       try {
         // Try a direct fetch first to get better error messages
         console.log('UserInfoCard: Attempting direct fetch first...');
@@ -411,9 +411,9 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
           },
           body: bodyString,
         });
-        
+
         console.log('UserInfoCard: Direct fetch status:', directResponse.status);
-        
+
         if (!directResponse.ok) {
           const errorText = await directResponse.text();
           console.error('UserInfoCard: Direct fetch error:', errorText);
@@ -433,11 +433,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         },
         body: bodyString,
       });
-      
+
       console.log('UserInfoCard: User profile updated successfully:', data);
       setProfileData(data);
       setSaveSuccess(true);
-      
+
       // Close modal after a short delay to show success message
       setTimeout(() => {
         if (componentMounted.current) {
@@ -454,7 +454,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
           setSaveError("An unexpected error occurred while updating your profile.");
         }
       }
-      
+
       // Run the test utility to help diagnose the issue
       console.log('UserInfoCard: Running test utility to determine correct zoneId format...');
       try {
@@ -471,7 +471,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
 
   const handleLogout = () => {
     console.log('UserInfoCard: User requested logout');
-    
+
     // Clear user-specific cached data before logout
     try {
       const userData = localStorage.getItem('userData');
@@ -486,17 +486,17 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     } catch (e) {
       console.error('UserInfoCard: Error clearing cached profile data:', e);
     }
-    
+
     logout();
   };
 
   // Generate avatar URL or use placeholder
   const getAvatarUrl = () => {
     // Debug log to help diagnose avatar issues
-    console.log('UserInfoCard: Getting avatar URL from data:', { 
-      avatar: profileData?.avatar, 
-      avatarUrl: profileData?.avatarUrl, 
-      photoId: profileData?.photoId 
+    console.log('UserInfoCard: Getting avatar URL from data:', {
+      avatar: profileData?.avatar,
+      avatarUrl: profileData?.avatarUrl,
+      photoId: profileData?.photoId
     });
 
     // First priority: direct avatar URL from API response
@@ -534,8 +534,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   };
 
   // Debug output before rendering decision
-  console.log('UserInfoCard: Before render condition check:', { 
-    isReady, 
+  console.log('UserInfoCard: Before render condition check:', {
+    isReady,
     loading,
     hasError: Boolean(error),
     hasProfileData: Boolean(profileData && profileData.id)
@@ -587,8 +587,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   }
 
   const avatarUrl = getAvatarUrl();
-  console.log('UserInfoCard: Rendering profile with data:', { 
-    avatarUrl, 
+  console.log('UserInfoCard: Rendering profile with data:', {
+    avatarUrl,
     profileType: profileData.type || profileData.role || 'Unknown',
     firstName: profileData.firstName,
     lastName: profileData.lastName
@@ -605,10 +605,10 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       <div className="flex flex-col items-center mb-6">
         <div className="w-24 h-24 rounded-full overflow-hidden mb-3">
           {avatarUrl ? (
-            <img 
-              src={avatarUrl} 
+            <img
+              src={avatarUrl}
               alt={`${profileData.firstName} ${profileData.lastName}`}
-              className="w-full h-full object-cover" 
+              className="w-full h-full object-cover"
               onError={(e) => {
                 console.error('UserInfoCard: Avatar load error', e);
                 // Instead of setting another image that might fail, render initials
@@ -618,11 +618,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                   // Create fallback div with user initials
                   const fallbackDiv = document.createElement('div');
                   fallbackDiv.className = 'w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center';
-                  
+
                   const initialsSpan = document.createElement('span');
                   initialsSpan.className = 'text-2xl font-semibold text-gray-500 dark:text-gray-400';
                   initialsSpan.textContent = `${profileData.firstName?.charAt(0) || ''}${profileData.lastName?.charAt(0) || ''}`;
-                  
+
                   fallbackDiv.appendChild(initialsSpan);
                   parent.appendChild(fallbackDiv);
                 }
@@ -719,11 +719,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
             onClick={handleLogout}
             className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto mt-2"
           >
-            <svg 
-              width="18" 
-              height="18" 
-              viewBox="0 0 18 18" 
-              fill="none" 
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="none"
               xmlns="http://www.w3.org/2000/svg"
               className="fill-current"
             >
@@ -791,7 +791,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                       console.log('Setting zoneId to:', zoneIdValue);
                       setProfileData({
                         ...profileData,
-                        zoneId: { 
+                        zoneId: {
                           id: zoneIdValue
                         },
                       });
@@ -818,9 +818,9 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                   <div className="flex items-center mt-2">
                     <div className="w-16 h-16 rounded-full overflow-hidden mr-4">
                       {avatarUrl ? (
-                        <img 
-                          src={avatarUrl} 
-                          alt="User Avatar" 
+                        <img
+                          src={avatarUrl}
+                          alt="User Avatar"
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             console.error('UserInfoCard: Detail avatar load error', e);
@@ -829,11 +829,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                             if (parent) {
                               const fallbackDiv = document.createElement('div');
                               fallbackDiv.className = 'w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center';
-                              
+
                               const initialsSpan = document.createElement('span');
                               initialsSpan.className = 'text-xl font-semibold text-gray-500 dark:text-gray-400';
                               initialsSpan.textContent = `${profileData.firstName?.charAt(0) || ''}${profileData.lastName?.charAt(0) || ''}`;
-                              
+
                               fallbackDiv.appendChild(initialsSpan);
                               parent.appendChild(fallbackDiv);
                             }
@@ -848,8 +848,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                         </div>
                       )}
                     </div>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => alert("Profile picture upload functionality would be implemented here")}
                     >
@@ -876,8 +876,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
               <Button size="sm" variant="outline" onClick={closeModal}>
                 Close
               </Button>
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={handleSave}
                 disabled={saveLoading}
                 className={saveLoading ? "opacity-70 cursor-not-allowed" : ""}

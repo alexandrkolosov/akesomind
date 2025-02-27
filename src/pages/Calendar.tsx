@@ -82,12 +82,12 @@ const Calendar: React.FC = () => {
         prevEvents.map((event) =>
           event.id === selectedEvent.id
             ? {
-                ...event,
-                title: eventTitle,
-                start: eventStartDate,
-                end: eventEndDate,
-                extendedProps: { calendar: eventLevel },
-              }
+              ...event,
+              title: eventTitle,
+              start: eventStartDate,
+              end: eventEndDate,
+              extendedProps: { calendar: eventLevel },
+            }
             : event
         )
       );

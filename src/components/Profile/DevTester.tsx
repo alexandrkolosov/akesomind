@@ -15,10 +15,10 @@ const DevTester: React.FC = () => {
       script.src = '/src/utils/test-profile.js';
       script.async = true;
       script.id = 'profile-test-script';
-      
+
       // Add the script to the document
       document.body.appendChild(script);
-      
+
       // Clean up on unmount
       return () => {
         const existingScript = document.getElementById('profile-test-script');
@@ -28,12 +28,12 @@ const DevTester: React.FC = () => {
       };
     }
   }, []);
-  
+
   // Only render in development mode
   if (process.env.NODE_ENV !== 'development') {
     return null;
   }
-  
+
   return (
     <div className="fixed bottom-4 right-4 z-50 bg-white dark:bg-boxdark p-4 rounded-lg shadow-lg border border-warning">
       <h4 className="text-sm font-semibold mb-2">Development Test Tools</h4>

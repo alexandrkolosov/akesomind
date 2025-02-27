@@ -10,15 +10,15 @@ import DevTester from "../components/Profile/DevTester";
 export default function UserProfiles() {
   const { id } = useParams<{ id?: string }>();
   const [isReady, setIsReady] = useState(false);
-  
+
   // Safely check if we're in development environment
-  const isDevelopment = typeof process !== 'undefined' && 
-    process.env && 
+  const isDevelopment = typeof process !== 'undefined' &&
+    process.env &&
     process.env.NODE_ENV === 'development';
 
   useEffect(() => {
     console.log('UserProfiles: Component mounting with clientId:', id);
-    
+
     // Check localStorage for user role/type
     try {
       const userData = localStorage.getItem('userData');
@@ -35,13 +35,13 @@ export default function UserProfiles() {
     } catch (error) {
       console.error('UserProfiles: Error parsing user data from localStorage:', error);
     }
-    
+
     // Small delay to ensure DOM is fully ready
     const timer = setTimeout(() => {
       setIsReady(true);
       console.log('UserProfiles: Component fully initialized and ready');
     }, 100); // Increased delay for more reliable initialization
-    
+
     return () => {
       console.log('UserProfiles: Component unmounting');
       clearTimeout(timer);
@@ -65,7 +65,7 @@ export default function UserProfiles() {
         description="User profile information and settings"
       />
       <PageBreadCrumb pageTitle="Profile" />
-      
+
       {/* Only show the ProfileTester in development mode */}
       {isDevelopment && (
         <div className="mb-6">
@@ -81,7 +81,7 @@ export default function UserProfiles() {
           <UserInfoCard clientId={id} />
         </div>
       </div>
-      
+
       {/* Add the DevTester for development */}
       {isDevelopment && <DevTester />}
     </>

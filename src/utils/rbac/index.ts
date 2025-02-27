@@ -10,16 +10,16 @@ export const Permissions = {
   // Profile-related permissions
   VIEW_OWN_PROFILE: 'view-own-profile',
   EDIT_OWN_PROFILE: 'edit-own-profile',
-  
+
   // Client-related permissions (typically for therapists)
   VIEW_CLIENT_PROFILES: 'view-client-profiles',
   EDIT_CLIENT_PROFILES: 'edit-client-profiles',
   INVITE_CLIENTS: 'invite-clients',
-  
+
   // Specific feature permissions can be added as needed
   SCHEDULE_SESSIONS: 'schedule-sessions',
   VIEW_CALENDAR: 'view-calendar',
-  
+
   // Admin permissions
   MANAGE_USERS: 'manage-users',
 };
@@ -41,7 +41,7 @@ export const RolePermissions: Record<UserRole, string[]> = {
     Permissions.EDIT_OWN_PROFILE,
     Permissions.VIEW_CALENDAR,
     Permissions.SCHEDULE_SESSIONS,
-    
+
     // Plus therapist-specific permissions
     Permissions.VIEW_CLIENT_PROFILES,
     Permissions.EDIT_CLIENT_PROFILES,
@@ -99,17 +99,17 @@ export function getCurrentUserRole(): UserRole {
         role: parsedData.role || 'Not set',
         email: parsedData.email || 'Not set'
       });
-      
+
       // Verify this is a valid role
       if (parsedData.role && Object.keys(RolePermissions).includes(parsedData.role)) {
         console.log('RBAC: Using valid role from localStorage:', parsedData.role);
-        
+
         // Special case for Therapist - enforce correct casing
         if (parsedData.role.toLowerCase() === 'therapist') {
           console.log('RBAC: Found therapist role, ensuring correct casing');
           return 'Therapist';
         }
-        
+
         return parsedData.role as UserRole;
       } else {
         console.warn('RBAC: Invalid or missing role in localStorage:', parsedData.role);
@@ -120,7 +120,7 @@ export function getCurrentUserRole(): UserRole {
   } catch (error) {
     console.error('RBAC: Error getting user role:', error);
   }
-  
+
   console.log('RBAC: Using default role:', DEFAULT_ROLE);
   return DEFAULT_ROLE;
 } 

@@ -30,22 +30,22 @@ async function fixFile(filePath) {
   try {
     console.log(`Checking file: ${filePath}`);
     let content = await readFile(filePath, 'utf8');
-    
+
     // Check for problematic imports
-    if (content.includes('../../../akesomind/src/utils/auth') || 
-        content.includes('../../../../akesomind/src/utils/auth') || 
-        content.includes('../../../../../akesomind/src/utils/auth')) {
-      
+    if (content.includes('../../../akesomind/src/utils/auth') ||
+      content.includes('../../../../akesomind/src/utils/auth') ||
+      content.includes('../../../../../akesomind/src/utils/auth')) {
+
       // Replace with correct relative path
       content = content.replace(/'\.\.\/\.\.\/\.\.\/akesomind\/src\/utils\/auth'/g, '"../../utils/auth"');
       content = content.replace(/'\.\.\/\.\.\/\.\.\/\.\.\/akesomind\/src\/utils\/auth'/g, '"../../../utils/auth"');
       content = content.replace(/'\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/akesomind\/src\/utils\/auth'/g, '"../../../../utils/auth"');
-      
+
       // Also replace with double quotes
       content = content.replace(/"\.\.\/\.\.\/\.\.\/akesomind\/src\/utils\/auth"/g, '"../../utils/auth"');
       content = content.replace(/"\.\.\/\.\.\/\.\.\/\.\.\/akesomind\/src\/utils\/auth"/g, '"../../../utils/auth"');
       content = content.replace(/"\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/akesomind\/src\/utils\/auth"/g, '"../../../../utils/auth"');
-      
+
       await writeFile(filePath, content, 'utf8');
       console.log(`Fixed import in: ${filePath}`);
     } else {
@@ -62,7 +62,7 @@ async function main() {
     for (const file of problematicFiles) {
       await fixFile(file);
     }
-    
+
     console.log('Done fixing specific files');
   } catch (error) {
     console.error('Error:', error);

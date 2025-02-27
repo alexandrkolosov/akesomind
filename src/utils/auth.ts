@@ -28,12 +28,12 @@ export const getUserData = async (): Promise<any> => {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       console.error('Auth: Failed to get user data, status:', response.status);
       throw new Error('Failed to get user data');
     }
-    
+
     const userData = await response.json();
     console.log('Auth: User data received from server:', {
       id: userData.id,
@@ -42,7 +42,7 @@ export const getUserData = async (): Promise<any> => {
       firstName: userData.firstName,
       lastName: userData.lastName
     });
-    
+
     // Ensure the role is properly set
     if (!userData.role && !userData.type) {
       console.warn('Auth: User role/type not set in API response, checking localStorage');
@@ -64,7 +64,7 @@ export const getUserData = async (): Promise<any> => {
         console.error('Auth: Error getting role/type from localStorage:', e);
       }
     }
-    
+
     return userData;
   } catch (error) {
     console.error('Auth: Error getting user data:', error);
@@ -81,12 +81,12 @@ export const verifyAuthentication = async (): Promise<boolean> => {
 export const login = async (email: string, password: string) => {
   try {
     console.log('Auth: Attempting login with email:', email);
-    
+
     // Create URLSearchParams for x-www-form-urlencoded format
     const params = new URLSearchParams();
     params.append('email', email);
     params.append('password', password);
-    
+
     const response = await fetch('https://api.akesomind.com/api/public/user/token', {
       method: 'POST',
       headers: {
@@ -105,13 +105,13 @@ export const login = async (email: string, password: string) => {
         const text = await response.text();
         if (!text) {
           console.log('Auth: Empty response body with 401 status - likely unverified email');
-          return { 
-            success: false, 
+          return {
+            success: false,
             error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
             unverifiedEmail: true
           };
         }
-        
+
         // If there's content, try to parse as JSON
         try {
           const error = JSON.parse(text);
@@ -121,7 +121,7 @@ export const login = async (email: string, password: string) => {
           return { success: false, error: 'Authentication failed' };
         }
       }
-      
+
       // For non-401 errors, attempt to parse JSON as before
       try {
         const error = await response.json();
@@ -134,7 +134,7 @@ export const login = async (email: string, password: string) => {
 
     const userData = await response.json();
     console.log('Auth: Login successful, received user data');
-    
+
     // Log information about the role/type
     console.log('Auth: User data from login response:', {
       id: userData.id || 'Not set',
@@ -142,7 +142,7 @@ export const login = async (email: string, password: string) => {
       role: userData.role || 'Not set',
       type: userData.type || 'Not set'
     });
-    
+
     // Ensure the role is properly set if it exists in the API response
     // Check for 'type' field first, which is the new field name
     if (userData.type) {
@@ -159,7 +159,7 @@ export const login = async (email: string, password: string) => {
     } else {
       console.warn('Auth: User role/type not set in login response');
     }
-    
+
     // Store both role and type in localStorage if available
     const userDataToStore = {
       ...userData,
@@ -167,16 +167,16 @@ export const login = async (email: string, password: string) => {
       role: userData.role || userData.type || 'Client',
       type: userData.type || userData.role || 'Client',
     };
-    
+
     // Store in localStorage
     localStorage.setItem('userData', JSON.stringify(userDataToStore));
-    
+
     return { success: true, userData };
   } catch (error) {
     console.error('Auth: Login error:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Connection failed' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Connection failed'
     };
   }
 };
@@ -217,7 +217,7 @@ export const handleApiResponse = async (response: Response): Promise<any> => {
       console.log('Continuing session with stored user data');
       return userData;
     }
-    
+
     // Otherwise, clear auth state
     localStorage.removeItem('userData');
 
@@ -265,7 +265,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   if (url.includes('/api/therapist/clients')) {
     try {
       console.log(`Making authenticated request to: ${url}`);
-      
+
       // First, try the GET request with query parameters
       const response = await fetch(url, {
         ...options,
@@ -275,9 +275,9 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           ...options.headers,
         }
       });
-      
+
       console.log(`Response status for ${url}: ${response.status}`);
-      
+
       // If successful, parse and return the response
       if (response.ok) {
         const contentType = response.headers.get('content-type');
@@ -287,26 +287,26 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           return await response.text();
         }
       }
-      
+
       // If we get a 401, try a POST request with parameters in the body
       if (response.status === 401) {
         console.log('GET request failed with 401, trying POST request...');
-        
+
         // Parse the URL to extract query parameters
         const urlObj = new URL(url);
         const state = urlObj.searchParams.get('state') || 'all';
-        
+
         // Extract pageRequest parameters
         let offset = 0;
         let limit = 10;
-        
+
         // Try to extract from bracket notation
         const offsetParam = urlObj.searchParams.get('pageRequest[offset]');
         const limitParam = urlObj.searchParams.get('pageRequest[limit]');
-        
+
         if (offsetParam) offset = parseInt(offsetParam);
         if (limitParam) limit = parseInt(limitParam);
-        
+
         // If not found, try to extract from JSON string
         if (!offsetParam && !limitParam) {
           const pageRequestJson = urlObj.searchParams.get('pageRequest');
@@ -320,27 +320,27 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
             }
           }
         }
-        
+
         // Create the POST request body with proper typing
         interface ClientRequestBody {
           state: string;
           pageRequest: { offset: number; limit: number };
           name?: string; // Optional name property
         }
-        
+
         const postBody: ClientRequestBody = {
           state,
           pageRequest: { offset, limit }
         };
-        
+
         // Add name parameter if present
         const name = urlObj.searchParams.get('name');
         if (name) {
           postBody.name = name;
         }
-        
+
         console.log('Trying POST request with body:', postBody);
-        
+
         // Make the POST request
         const postResponse = await fetch('https://api.akesomind.com/api/therapist/clients', {
           method: 'POST',
@@ -350,9 +350,9 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           },
           body: JSON.stringify(postBody)
         });
-        
+
         console.log(`POST response status: ${postResponse.status}`);
-        
+
         if (postResponse.ok) {
           const contentType = postResponse.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
@@ -361,12 +361,12 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
             return await postResponse.text();
           }
         }
-        
+
         // If POST also fails, return empty data
         console.log('Both GET and POST requests failed, returning empty data');
         return { list: [], total: 0 };
       }
-      
+
       // For other error statuses, return empty data
       return { list: [], total: 0 };
     } catch (error) {
@@ -374,28 +374,28 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
       return { list: [], total: 0 };
     }
   }
-  
+
   // Special handling for user profile PUT request
   if (url === 'https://api.akesomind.com/api/user' && options.method === 'PUT') {
     try {
       console.log('Making PUT request to update user profile');
-      
+
       // Log the request body for debugging
       let bodyObj: any = {};
       let originalBody = "";
-      
+
       if (options.body) {
         try {
           originalBody = options.body.toString();
           bodyObj = JSON.parse(originalBody);
           console.log('Original request body:', JSON.stringify(bodyObj, null, 2));
-          
+
           // Always ensure the body format is correct for the backend
           let needsModification = false;
           const modifiedBody = { ...bodyObj };
-          
+
           // Process each field according to the backend requirements
-          
+
           // ===== Handle zoneId =====
           // The backend expects a string value that will be passed to ZoneId.of(zoneId)
           if (typeof bodyObj.zoneId === 'object' && bodyObj.zoneId !== null) {
@@ -426,7 +426,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
             modifiedBody.zoneId = "UTC";
             needsModification = true;
           }
-          
+
           // ===== Handle boolean fields =====
           // Ensure darkTheme and muteNotifications are actual booleans
           if ('darkTheme' in bodyObj && typeof bodyObj.darkTheme !== 'boolean') {
@@ -434,13 +434,13 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
             modifiedBody.darkTheme = Boolean(bodyObj.darkTheme);
             needsModification = true;
           }
-          
+
           if ('muteNotifications' in bodyObj && typeof bodyObj.muteNotifications !== 'boolean') {
             console.warn(`WARNING: muteNotifications is not a boolean: ${bodyObj.muteNotifications}`);
             modifiedBody.muteNotifications = Boolean(bodyObj.muteNotifications);
             needsModification = true;
           }
-          
+
           // ===== Handle birthday =====
           // Ensure birthday is a valid string or null
           if (bodyObj.birthday !== null && bodyObj.birthday !== undefined) {
@@ -466,7 +466,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
               }
             }
           }
-          
+
           // ===== Handle photoId =====
           // Ensure photoId is a number or null
           if (bodyObj.photoId !== null && bodyObj.photoId !== undefined) {
@@ -478,7 +478,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
               needsModification = true;
             }
           }
-          
+
           // ===== Apply modifications if needed =====
           if (needsModification) {
             console.log('Modified request body:', JSON.stringify(modifiedBody, null, 2));
@@ -486,22 +486,22 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           } else {
             console.log('Request body is properly formatted, no modifications needed');
           }
-          
+
           // ===== Final validation =====
           // Ensure all fields from UpdateUser class are present
           const requiredFields = [
-            'email', 'firstName', 'lastName', 'darkTheme', 'language', 
-            'muteNotifications', 'phone', 'birthday', 'education', 
+            'email', 'firstName', 'lastName', 'darkTheme', 'language',
+            'muteNotifications', 'phone', 'birthday', 'education',
             'experience', 'approach', 'photoId', 'zoneId'
           ];
-          
+
           const finalBodyObj = needsModification ? modifiedBody : bodyObj;
           const missingFields = requiredFields.filter(field => !(field in finalBodyObj));
-          
+
           if (missingFields.length > 0) {
             console.warn('WARNING: Missing fields in request body:', missingFields.join(', '));
           }
-          
+
           // Log the final request body as string
           console.log('Final request body string:', options.body);
         } catch (e) {
@@ -510,7 +510,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           console.log('Proceeding with unmodified body:', originalBody);
         }
       }
-      
+
       const response = await fetch(url, {
         ...options,
         credentials: 'include',
@@ -520,33 +520,33 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           ...options.headers,
         }
       });
-      
+
       console.log(`PUT response status: ${response.status}`);
-      
+
       // Log the actual request details that were sent to the server
       console.log('Request details that were sent:');
       console.log('- URL:', url);
       console.log('- Method:', options.method);
       console.log('- Headers:', JSON.stringify(options.headers, null, 2));
       console.log('- Body:', options.body);
-      
+
       if (!response.ok) {
         // Get detailed error information
         let errorMessage = `Failed to update profile (${response.status})`;
         let errorData = null;
-        
+
         try {
           // One last attempt - try with a completely reconstructed minimal request
           console.log('Attempting another approach with minimal data...');
-          
+
           try {
             const minimalData = {
               firstName: bodyObj.firstName,
               lastName: bodyObj.lastName,
               email: bodyObj.email,
               // The critical field - plain string for zoneId
-              zoneId: typeof bodyObj.zoneId === 'string' ? bodyObj.zoneId : 
-                     (typeof bodyObj.zoneId === 'object' && bodyObj.zoneId?.id ? bodyObj.zoneId.id : "UTC"),
+              zoneId: typeof bodyObj.zoneId === 'string' ? bodyObj.zoneId :
+                (typeof bodyObj.zoneId === 'object' && bodyObj.zoneId?.id ? bodyObj.zoneId.id : "UTC"),
               // Default values for required fields
               darkTheme: false,
               muteNotifications: false,
@@ -558,9 +558,9 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
               approach: null,
               photoId: null
             };
-            
+
             console.log('Trying with minimal data:', JSON.stringify(minimalData, null, 2));
-            
+
             const retryResponse = await fetch(url, {
               method: 'PUT',
               credentials: 'include',
@@ -570,13 +570,13 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
               },
               body: JSON.stringify(minimalData)
             });
-            
+
             console.log('Retry response status:', retryResponse.status);
-            
+
             if (retryResponse.ok) {
               console.log('Retry with minimal data succeeded!');
               const data = await retryResponse.json();
-              
+
               // Update local storage with new user data if this is the current user's profile
               const userData = await getUserData();
               if (userData && userData.id === data.id) {
@@ -585,7 +585,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
                   ...data
                 }));
               }
-              
+
               return data;
             } else {
               console.log('Retry with minimal data failed, proceeding with error handling');
@@ -593,7 +593,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           } catch (retryError) {
             console.error('Error during retry attempt:', retryError);
           }
-          
+
           // Log all response headers for debugging
           console.error('Response headers:');
           response.headers.forEach((value, name) => {
@@ -602,10 +602,10 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 
           const contentType = response.headers.get('content-type');
           console.log('Response content type:', contentType);
-          
+
           const errorText = await response.text();
           console.error('Profile update error text:', errorText);
-          
+
           // Try to parse the error text as JSON regardless of content type
           try {
             const parsedError = JSON.parse(errorText);
@@ -619,16 +619,16 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
         } catch (e) {
           console.error('Error parsing error response:', e);
         }
-        
+
         throw new Error(errorMessage);
       }
-      
+
       // Parse successful response
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const data = await response.json();
         console.log('Successful update response:', data);
-        
+
         // Update local storage with new user data if this is the current user's profile
         const userData = await getUserData();
         if (userData && userData.id === data.id) {
@@ -637,7 +637,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
             ...data
           }));
         }
-        
+
         return data;
       } else {
         return await response.text();
@@ -647,15 +647,15 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
       throw error; // Rethrow to let component handle the error
     }
   }
-  
+
   // Standard handling for all other endpoints
   try {
     console.log(`Making authenticated request to: ${url}`);
-    
+
     // Create a controller to handle request abortion
     const controller = new AbortController();
     const { signal } = controller;
-    
+
     const response = await fetch(url, {
       ...options,
       signal,
@@ -673,11 +673,11 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
       }
       return null;
     });
-    
+
     // If fetch was aborted or failed
     if (!response) {
       console.log('Request failed or was aborted');
-      
+
       // Return appropriate empty data based on endpoint
       if (url.includes('list')) {
         return { list: [], total: 0 };
@@ -693,33 +693,33 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     if (!response.ok) {
       if (response.status === 401) {
         console.log('Authentication failed (401 Unauthorized)');
-        
+
         // Abort the request to prevent further console errors
         controller.abort();
-        
+
         // Check if we have cached user data
         const userData = localStorage.getItem('userData');
-        
+
         // Only redirect to login for specific authentication verification endpoints
-        if (url === 'https://api.akesomind.com/api/auth/verify' || 
-            url === 'https://api.akesomind.com/api/auth/check') {
+        if (url === 'https://api.akesomind.com/api/auth/verify' ||
+          url === 'https://api.akesomind.com/api/auth/check') {
           console.log('Authentication verification failed, redirecting to login');
           localStorage.removeItem('userData');
           window.location.href = '/signin';
           throw new Error('Session expired');
         }
-        
+
         // For user profile endpoint, return cached user data
         if (url.includes('/api/user') && userData) {
           console.log('Returning cached user data for profile');
           return JSON.parse(userData);
         }
-        
+
         // For other endpoints, return empty data but don't redirect
         console.log('Continuing with empty data due to 401');
         return url.includes('list') ? { list: [], total: 0 } : {};
       }
-      
+
       // Handle other error statuses
       try {
         const errorText = await response.text();
@@ -732,12 +732,12 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
           // If not JSON, use text
           errorMessage = errorText || `Error: ${response.status}`;
         }
-        
+
         console.log(`API error (${response.status}):`, errorMessage);
       } catch (e) {
         console.log(`Error reading response: ${e}`);
       }
-      
+
       // For non-401 errors, don't throw - return empty data instead
       if (url.includes('list')) {
         return { list: [], total: 0 };
@@ -766,12 +766,12 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     if (error && typeof error === 'object' && 'name' in error && error.name !== 'AbortError') {
       console.log('API request error:', error);
     }
-    
+
     // Don't propagate errors to components, return empty data instead
     if (error instanceof Error && error.message === 'Session expired') {
       throw error; // Only rethrow session expired errors
     }
-    
+
     // Return appropriate empty data structure based on endpoint
     if (typeof url === 'string') {
       if (url.includes('list')) {
@@ -797,29 +797,29 @@ export const resendVerificationEmail = async (email: string) => {
     });
 
     if (response.ok) {
-      return { 
-        success: true, 
-        message: 'Verification email sent. Please check your inbox.' 
+      return {
+        success: true,
+        message: 'Verification email sent. Please check your inbox.'
       };
     } else {
       try {
         const errorData = await response.json();
-        return { 
-          success: false, 
-          error: errorData.message || 'Failed to resend verification email.' 
+        return {
+          success: false,
+          error: errorData.message || 'Failed to resend verification email.'
         };
       } catch (e) {
-        return { 
-          success: false, 
-          error: `Failed to resend verification email. (${response.status})` 
+        return {
+          success: false,
+          error: `Failed to resend verification email. (${response.status})`
         };
       }
     }
   } catch (error) {
     console.error('Error resending verification email:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Connection failed' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Connection failed'
     };
   }
 };
