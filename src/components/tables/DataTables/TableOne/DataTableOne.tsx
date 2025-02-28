@@ -71,6 +71,39 @@ interface Recording {
   url?: string; // The original URL containing the UUID
 }
 
+// Interface for material file
+interface MaterialFile {
+  url: string;
+  name: string;
+}
+
+// Interface for material
+interface Material {
+  id: number;
+  name: string;
+  isAssigned: boolean;
+  description: string;
+  files: MaterialFile[];
+  urls: string[];
+}
+
+// Interface for material assignment
+interface MaterialAssignment {
+  id: number;
+  client: {
+    id: number;
+    // Other client fields...
+  };
+  material: Material;
+  createdAt: string;
+}
+
+// Interface for material assignment response
+interface MaterialAssignmentResponse {
+  list: MaterialAssignment[];
+  total: number;
+}
+
 // Define the request body interface
 interface ClientRequestBody {
   state: string;
@@ -182,6 +215,10 @@ export default function DataTableOne() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState<Record<string, boolean>>({});
   const [isTranscribing, setIsTranscribing] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState('profile');
+  
+  // Materials state
+  const [materials, setMaterials] = useState<MaterialAssignment[]>([]);
+  const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
 
   // Add a state to track cooldown periods for retry attempts
   const [summaryCooldowns, setSummaryCooldowns] = useState<Record<string, boolean>>({});
@@ -550,6 +587,118 @@ export default function DataTableOne() {
       setRecordings([]);
     } finally {
       setIsLoadingRecordings(false);
+    }
+  };
+
+  // Function to fetch client materials
+  const fetchClientMaterials = async (clientId: number) => {
+    setIsLoadingMaterials(true);
+    console.log(`Fetching materials for client ID: ${clientId}`);
+    try {
+      const response = await fetch(
+        `https://api.akesomind.com/api/material/assigment`, 
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store',
+            'Pragma': 'no-cache'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data: MaterialAssignmentResponse = await response.json();
+        console.log("Materials API Response:", data);
+        
+        // Create a deep clone of the data to avoid reference issues
+        const clonedData = JSON.parse(JSON.stringify(data));
+        
+        // Filter materials for the current client
+        const clientMaterials = clonedData.list.filter(
+          (assignment: MaterialAssignment) => assignment.client.id === clientId
+        );
+        
+        console.log(`Found ${clientMaterials.length} materials for client ID ${clientId}:`, 
+          JSON.stringify(clientMaterials, null, 2));
+        
+        // Check for materials with files and log details
+        clientMaterials.forEach((assignment: MaterialAssignment) => {
+          const material = assignment.material;
+          console.log(`Material ID: ${material.id}, Name: ${material.name}`);
+          console.log(`- Files: ${material.files ? material.files.length : 0}`);
+          // Also log the full material object for debugging
+          console.log(`- Full material object: ${JSON.stringify(material)}`);
+          
+          if (material.files && material.files.length > 0) {
+            material.files.forEach((file: MaterialFile, index: number) => {
+              console.log(`  - File ${index + 1}: Name: ${file.name}, URL: ${file.url}`);
+            });
+          } else {
+            console.log(`  - No files found for this material`);
+          }
+        });
+        
+        setMaterials(clientMaterials);
+      } else {
+        console.error("Error fetching materials. Status:", response.status);
+        try {
+          const errorText = await response.text();
+          console.error("Error response:", errorText);
+        } catch (e) {
+          console.error("Could not parse error response");
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching client materials:", error);
+    } finally {
+      setIsLoadingMaterials(false);
+    }
+  };
+
+  // Direct file download function with proper authentication
+  const downloadMaterialFile = async (fileId: number, fileName: string): Promise<void> => {
+    console.log(`Directly downloading file ID: ${fileId}, filename: ${fileName}`);
+    try {
+      const fileUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
+      console.log(`Making request to: ${fileUrl}`);
+      
+      const response = await fetch(fileUrl, { 
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      // Log response headers for debugging
+      console.log('Response headers:');
+      response.headers.forEach((value, key) => {
+        console.log(`${key}: ${value}`);
+      });
+      
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a download link and trigger it
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+      
+      console.log(`Download completed for ${fileName}`);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1069,6 +1218,7 @@ export default function DataTableOne() {
   const handleOpenClientModal = (clientId: number) => {
     fetchClientDetails(clientId);
     fetchClientRecordings(clientId);
+    fetchClientMaterials(clientId);
     setIsModalOpen(true);
   };
 
@@ -1077,6 +1227,7 @@ export default function DataTableOne() {
     setIsModalOpen(false);
     setSelectedClient(null);
     setRecordings([]);
+    setMaterials([]);
     setActiveTab('profile');
   };
 
@@ -1186,6 +1337,35 @@ export default function DataTableOne() {
       }
     });
   }, [recordings]);
+
+  // Handle tab change in client modal
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    console.log(`Changed to tab: ${tab}`);
+    
+    // When changing to materials tab, log the current materials
+    if (tab === 'materials' && materials.length > 0) {
+      console.log(`Current materials count: ${materials.length}`);
+      
+      // Debug - Log each material
+      materials.forEach((assignment, index) => {
+        const material = assignment.material;
+        console.log(`Tab Material ${index+1} - ID: ${material.id}, Name: ${material.name}`);
+        console.log(`- Has files: ${material.files && material.files.length > 0}`);
+        console.log(`- Files count: ${material.files ? material.files.length : 0}`);
+        
+        // Log each file if available
+        if (material.files && material.files.length > 0) {
+          material.files.forEach((file, fileIndex) => {
+            console.log(`  - File ${fileIndex+1}: ${file.name}, URL: ${file.url}`);
+          });
+        }
+        
+        // Log full material object to debug structure
+        console.log(`Full material object for ${material.name}:`, JSON.stringify(material));
+      });
+    }
+  };
 
   return (
     <div className="overflow-hidden bg-white dark:bg-white/[0.03] rounded-xl">
@@ -1476,24 +1656,46 @@ export default function DataTableOne() {
             <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
               <div className="flex flex-wrap -mb-px">
                 <button 
-                  className={`mr-2 inline-block p-4 border-b-2 rounded-t-lg ${
-                    activeTab === 'profile' 
-                      ? 'text-brand-500 border-brand-500 dark:text-brand-400 dark:border-brand-400' 
-                      : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  className={`item-center relative flex cursor-pointer w-1/3 rounded-md text-sm font-medium ${
+                    activeTab === 'profile'
+                      ? 'bg-white text-primary dark:bg-boxdark dark:text-white'
+                      : 'bg-[#F5F7FD] text-body dark:bg-boxdark-2 dark:text-bodydark'
                   }`}
                   onClick={() => setActiveTab('profile')}
                 >
-                  Profile
+                  <span className="w-full py-4">Profile</span>
                 </button>
                 <button 
-                  className={`mr-2 inline-block p-4 border-b-2 rounded-t-lg ${
-                    activeTab === 'recordings' 
-                      ? 'text-brand-500 border-brand-500 dark:text-brand-400 dark:border-brand-400' 
-                      : 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300'
+                  className={`item-center relative flex cursor-pointer w-1/3 rounded-md text-sm font-medium ${
+                    activeTab === 'recordings'
+                      ? 'bg-white text-primary dark:bg-boxdark dark:text-white'
+                      : 'bg-[#F5F7FD] text-body dark:bg-boxdark-2 dark:text-bodydark'
                   }`}
-                  onClick={() => setActiveTab('recordings')}
+                  onClick={() => {
+                    setActiveTab('recordings');
+                    // Fetch fresh recordings data when switching to this tab
+                    if (selectedClient) {
+                      fetchClientRecordings(selectedClient.id);
+                    }
+                  }}
                 >
-                  Recordings
+                  <span className="w-full py-4">Recordings</span>
+                </button>
+                <button 
+                  className={`item-center relative flex cursor-pointer w-1/3 rounded-md text-sm font-medium ${
+                    activeTab === 'materials'
+                      ? 'bg-white text-primary dark:bg-boxdark dark:text-white'
+                      : 'bg-[#F5F7FD] text-body dark:bg-boxdark-2 dark:text-bodydark'
+                  }`}
+                  onClick={() => {
+                    setActiveTab('materials');
+                    // Fetch fresh materials data when switching to this tab
+                    if (selectedClient) {
+                      fetchClientMaterials(selectedClient.id);
+                    }
+                  }}
+                >
+                  <span className="w-full py-4">Materials</span>
                 </button>
               </div>
             </div>
@@ -1839,6 +2041,226 @@ export default function DataTableOne() {
                 ) : (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     No recordings found for this client.
+                  </div>
+                )}
+              </div>
+            ) : isLoadingMaterials && activeTab === 'materials' ? (
+              <div className="flex justify-center items-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-500"></div>
+              </div>
+            ) : activeTab === 'materials' ? (
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                  Client Materials
+                </h3>
+                
+                {materials.length > 0 ? (
+                  <div className="space-y-4">
+                    {materials.map((assignment) => {
+                      const material = assignment.material;
+                      
+                      return (
+                        <div 
+                          key={assignment.id} 
+                          className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm"
+                        >
+                          <div className="mb-4">
+                            <h4 className="font-medium text-gray-800 dark:text-white mb-1">
+                              {material.name}
+                            </h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Added on {new Date(assignment.createdAt).toLocaleDateString()}
+                            </p>
+                            {material.description && (
+                              <p className="mt-2 text-gray-600 dark:text-gray-300">
+                                {material.description}
+                              </p>
+                            )}
+                          </div>
+                          
+                          {material.files && material.files.length > 0 ? (
+                            <div className="tw-mt-4">
+                              <h6 className="tw-text-base tw-font-bold">Files:</h6>
+                              {material.files.map((file, fileIndex) => (
+                                <button
+                                  key={fileIndex}
+                                  className="tw-mb-2 tw-flex tw-w-full tw-items-center tw-text-sm md:tw-text-base"
+                                  type="button"
+                                  onClick={() => {
+                                    // Debug log for file URL
+                                    console.log(`Material ID: ${material.id}, Name: ${material.name}`);
+                                    console.log(`Downloading file: ${file.name} from URL: ${file.url}`);
+                                    // Log the full file object
+                                    console.log(`File object:`, JSON.stringify(file));
+                                    
+                                    // Extract file ID from URL if possible
+                                    const fileIdMatch = file.url.match(/\/file\/(\d+)$/);
+                                    if (fileIdMatch && fileIdMatch[1]) {
+                                      const fileId = parseInt(fileIdMatch[1], 10);
+                                      downloadMaterialFile(fileId, file.name);
+                                    } else {
+                                      // Fallback to original method if can't extract ID
+                                      fetch(file.url, { credentials: 'include' })
+                                        .then((response) => {
+                                          if (!response.ok) {
+                                            throw new Error(`HTTP error! Status: ${response.status}`);
+                                          }
+                                          
+                                          // Check content type to ensure we're getting a file
+                                          const contentType = response.headers.get('content-type');
+                                          console.log(`File response content type: ${contentType}`);
+                                          
+                                          // Get filename from content-disposition if available
+                                          const contentDisposition = response.headers.get('content-disposition');
+                                          let filename = file.name; // Default to the filename from the API
+                                          
+                                          if (contentDisposition) {
+                                            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                            if (filenameMatch && filenameMatch[1]) {
+                                              filename = filenameMatch[1].replace(/['"]/g, '');
+                                              console.log(`Using filename from headers: ${filename}`);
+                                            }
+                                          } else {
+                                            console.log(`Using filename from API: ${filename}`);
+                                          }
+                                          
+                                          // For non-JSON responses, proceed with download
+                                          return response.blob().then(responseBlob => ({ blob: responseBlob, filename }));
+                                        })
+                                        .then(({ blob, filename }) => {
+                                          // Check if we have a valid blob
+                                          if (blob.size === 0) {
+                                            throw new Error('Received empty file data');
+                                          }
+                                          
+                                          console.log(`Creating download for file "${filename}" (${blob.size} bytes, type: ${blob.type})`);
+                                          
+                                          const blobUrl = window.URL.createObjectURL(blob);
+                                          const a = document.createElement('a');
+                                          a.href = blobUrl;
+                                          a.download = filename;
+                                          document.body.appendChild(a);
+                                          a.click();
+                                          document.body.removeChild(a);
+                                          window.URL.revokeObjectURL(blobUrl);
+                                        })
+                                        .catch(error => {
+                                          console.error(`Error downloading file: ${file.name}`, error);
+                                          alert(`Failed to download file: ${file.name}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                          
+                                          // As a last resort, try opening in a new tab
+                                          console.log('Falling back to opening in new tab...');
+                                          window.open(file.url, '_blank');
+                                        });
+                                    }
+                                  }}
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="icon-tabler icon-tabler-file tw-mr-1"
+                                    width="24px"
+                                    height="24px"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth="2"
+                                    stroke="currentColor"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+                                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
+                                  </svg>
+                                  <p className="tw-w-full tw-truncate tw-text-left">{file.name}</p>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="tw-mt-4">
+                              <h6 className="tw-text-base tw-font-bold">Download Material:</h6>
+                              <button
+                                className="tw-mb-2 tw-flex tw-w-full tw-items-center tw-text-sm md:tw-text-base"
+                                type="button"
+                                onClick={() => {
+                                  // Special case for Beck Assessment
+                                  if (material.id === 44 && material.name === "Beck Assessment") {
+                                    console.log("Beck Assessment detected - using direct file download method");
+                                    downloadMaterialFile(42, "BDI21.pdf");
+                                    return;
+                                  }
+                                  
+                                  // For materials without files, try direct download
+                                  console.log(`Attempting direct file download for material "${material.name}" (ID: ${material.id})`);
+                                  const directUrl = `https://api.akesomind.com/api/material/${material.id}`;
+                                  
+                                  // Open in new tab as fallback since direct download attempts failed
+                                  console.log(`Opening material URL directly: ${directUrl}`);
+                                  window.open(directUrl, '_blank');
+                                }}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="icon-tabler icon-tabler-file tw-mr-1"
+                                  width="24px"
+                                  height="24px"
+                                  viewBox="0 0 24 24"
+                                  strokeWidth="2"
+                                  stroke="currentColor"
+                                  fill="none"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                  <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+                                  <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
+                                </svg>
+                                <p className="tw-w-full tw-truncate tw-text-left">{material.name}</p>
+                              </button>
+                            </div>
+                          )}
+                          
+                          {material.urls && material.urls.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">URLs:</p>
+                              <div className="space-y-2">
+                                {material.urls.map((url, index) => (
+                                  <a
+                                    key={index}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="tw-mb-2 tw-flex tw-w-full tw-items-center tw-text-sm md:tw-text-base text-blue-500 hover:underline"
+                                  >
+                                    <svg 
+                                      xmlns="http://www.w3.org/2000/svg" 
+                                      className="icon-tabler icon-tabler-link tw-mr-1" 
+                                      width="20px" 
+                                      height="20px" 
+                                      viewBox="0 0 24 24" 
+                                      strokeWidth="2" 
+                                      stroke="currentColor" 
+                                      fill="none" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                    >
+                                      <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                      <path d="M9 15l6 -6"></path>
+                                      <path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"></path>
+                                      <path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"></path>
+                                    </svg>
+                                    <p className="tw-w-full tw-truncate tw-text-left">{url}</p>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No materials found for this client.
                   </div>
                 )}
               </div>

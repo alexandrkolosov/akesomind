@@ -3,13 +3,15 @@ import { useParams } from "react-router-dom";
 import PageBreadCrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import UserInfoCard from "../components/UserProfile/UserInfoCard";
+import UserMaterialsCard from "../components/UserProfile/UserMaterialsCard";
 // Import the development tools only if needed
-import { ProfileTester } from '../components/Profile/ProfileTester';
+import { ProfileTester } from "../components/Profile/ProfileTester";
 import DevTester from "../components/Profile/DevTester";
 
 export default function UserProfiles() {
   const { id } = useParams<{ id?: string }>();
   const [isReady, setIsReady] = useState(false);
+  const [userId, setUserId] = useState<string | undefined>(id);
 
   // Safely check if we're in development environment
   const isDevelopment = typeof process !== 'undefined' &&
@@ -19,7 +21,7 @@ export default function UserProfiles() {
   useEffect(() => {
     console.log('UserProfiles: Component mounting with clientId:', id);
 
-    // Check localStorage for user role/type
+    // Check localStorage for user role/type and ID
     try {
       const userData = localStorage.getItem('userData');
       if (userData) {
@@ -27,8 +29,15 @@ export default function UserProfiles() {
         console.log('UserProfiles: User data from localStorage:', {
           role: parsedData.role || 'Not set',
           type: parsedData.type || 'Not set',
-          email: parsedData.email || 'Not set'
+          email: parsedData.email || 'Not set',
+          id: parsedData.id || 'Not set'
         });
+        
+        // If we don't have an ID from URL params, try to get it from localStorage
+        if (!id && parsedData.id) {
+          setUserId(parsedData.id.toString());
+          console.log(`UserProfiles: Setting userId from localStorage: ${parsedData.id}`);
+        }
       } else {
         console.log('UserProfiles: No user data found in localStorage');
       }
@@ -57,7 +66,7 @@ export default function UserProfiles() {
     );
   }
 
-  console.log('UserProfiles: Rendering main content');
+  console.log('UserProfiles: Rendering main content with userId:', userId);
   return (
     <>
       <PageMeta
@@ -78,8 +87,13 @@ export default function UserProfiles() {
           Profile
         </h3>
         <div className="space-y-6">
-          <UserInfoCard clientId={id} />
+          <UserInfoCard clientId={userId} />
         </div>
+      </div>
+
+      {/* Client Materials Section */}
+      <div className="mt-6">
+        <UserMaterialsCard clientId={userId} />
       </div>
 
       {/* Add the DevTester for development */}
