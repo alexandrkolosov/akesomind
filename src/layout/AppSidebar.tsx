@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
+import { useOwnProfile } from "../hooks/useProfileData";
 
 // Assume these icons are imported from an icon library
 import {
@@ -67,6 +68,38 @@ const navItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
+  const { data: userData } = useOwnProfile();
+
+  // Check if user is a client
+  const isClient = React.useMemo(() => {
+    // First check from userData
+    if (userData?.role === 'client' || userData?.role === 'Client') {
+      return true;
+    }
+    
+    // Fallback to localStorage if userData not loaded yet
+    try {
+      const localUserData = localStorage.getItem('userData');
+      if (localUserData) {
+        const parsedUserData = JSON.parse(localUserData);
+        return parsedUserData.role === 'client' || 
+               parsedUserData.role === 'Client' ||
+               parsedUserData.type === 'Client';
+      }
+    } catch (error) {
+      console.error('Error checking client role from localStorage:', error);
+    }
+    
+    return false;
+  }, [userData]);
+
+  // Filter out CLIENT LIST menu item for client users
+  const filteredNavItems = navItems.filter(item => {
+    if (isClient && item.name === "Client List") {
+      return false;
+    }
+    return true;
+  });
 
   // We now only need to track the open submenu for the main menu items.
   const [openSubmenu, setOpenSubmenu] = useState<{ index: number } | null>(null);
@@ -81,7 +114,7 @@ const AppSidebar: React.FC = () => {
   // Check if any subItem in the main menu is active and update openSubmenu accordingly.
   useEffect(() => {
     let submenuMatched = false;
-    navItems.forEach((nav, index) => {
+    filteredNavItems.forEach((nav, index) => {
       if (nav.subItems) {
         nav.subItems.forEach((subItem) => {
           if (isActive(subItem.path)) {
@@ -293,7 +326,7 @@ const AppSidebar: React.FC = () => {
                 >
                   {isExpanded || isHovered || isMobileOpen ? "Menu" : <HorizontaLDots />}
                 </h2>
-                {renderMenuItems(navItems)}
+                {renderMenuItems(filteredNavItems)}
               </div>
             </div>
           </nav>

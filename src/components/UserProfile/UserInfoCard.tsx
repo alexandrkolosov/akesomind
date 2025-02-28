@@ -21,11 +21,46 @@ interface UserInfoCardProps {
   clientId?: string;
 }
 
+// Type definition for user data
+interface UserData {
+  id?: number;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  type?: string;
+  role?: string;
+  zoneId?: string | { id: string };
+  avatar?: string;
+  phone?: string;
+  birthday?: string;
+  [key: string]: any; // Allow other properties
+}
+
 export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   console.log('UserInfoCard: Component initializing', { clientId });
   const componentMounted = useRef(true);
   const { isOpen, openModal, closeModal } = useModal();
   const [isReady, setIsReady] = useState(false);
+  const [loggedInUserData, setLoggedInUserData] = useState<any>(null);
+  const [isCached, setIsCached] = useState(false);
+
+  // Load the current user's data from localStorage on mount
+  useEffect(() => {
+    try {
+      const userDataStr = localStorage.getItem('userData');
+      if (userDataStr) {
+        const parsedUserData = JSON.parse(userDataStr);
+        console.log('UserInfoCard: Loaded logged-in user data:', {
+          id: parsedUserData.id,
+          email: parsedUserData.email,
+          role: parsedUserData.role || parsedUserData.type || 'Unknown'
+        });
+        setLoggedInUserData(parsedUserData);
+      }
+    } catch (e) {
+      console.error('UserInfoCard: Error loading logged-in user data:', e);
+    }
+  }, []);
 
   // Check for cached data on component init
   const getCachedData = () => {
@@ -118,129 +153,118 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     }
   }, []);
 
-  // Define fetchUserDetails function outside of useEffect
-  const fetchUserDetails = async () => {
-    try {
-      console.log('UserInfoCard: Fetching user details, initial state:', { isReady, loading });
-
-      const endpoint = clientId
-        ? `https://api.akesomind.com/api/user/${clientId}`
-        : "https://api.akesomind.com/api/user";
-
-      console.log('UserInfoCard: Using API endpoint:', endpoint);
-      const data = await fetchWithAuth(endpoint);
-      console.log('UserInfoCard: Full API response:', data);
-
-      // Check for role/type information in the API response
-      if (data && data.type) {
-        console.log('UserInfoCard: User type from API:', data.type);
-        // If we have type field, ensure we also set the role field for compatibility
-        data.role = data.type;
-      } else if (data && data.role) {
-        console.log('UserInfoCard: User role from API:', data.role);
-        // If we have role but no type, set type for forward compatibility
-        if (!data.type) {
-          data.type = data.role;
-        }
-      } else {
-        console.log('UserInfoCard: No role/type information in API response, checking localStorage');
-
-        // If no role in API data, check localStorage for both type and role
-        try {
-          const storedData = localStorage.getItem('userData');
-          if (storedData) {
-            const parsedData = JSON.parse(storedData);
-            if (parsedData.type) {
-              console.log('UserInfoCard: Using type from localStorage:', parsedData.type);
-              data.type = parsedData.type;
-              data.role = parsedData.type; // Set both for compatibility
-            } else if (parsedData.role) {
-              console.log('UserInfoCard: Using role from localStorage:', parsedData.role);
-              data.role = parsedData.role;
-              data.type = parsedData.role; // Set both for compatibility
-            }
-          }
-        } catch (e) {
-          console.error('UserInfoCard: Error getting role/type from localStorage:', e);
-        }
-      }
-
-      // Normalize zoneId to ensure consistent handling
-      let normalizedZoneId;
-      if (typeof data.zoneId === 'string') {
-        normalizedZoneId = { id: data.zoneId };
-      } else if (data.zoneId && typeof data.zoneId === 'object') {
-        normalizedZoneId = data.zoneId;
-      } else {
-        normalizedZoneId = { id: "UTC" };
-      }
-
-      // Check if we have avatar data
-      console.log('UserInfoCard: Avatar data:', {
-        photoId: data.photoId,
-        avatar: data.avatar,
-        avatarUrl: data.avatarUrl
-      });
-
-      // Ensure zoneId is properly formatted
-      const formattedData = {
-        ...data,
-        zoneId: normalizedZoneId
-      };
-
-      console.log('UserInfoCard: Final formatted profile data:', formattedData);
-
-      // Store the formatted data in localStorage with user-specific key
+  // Format user profile data consistently
+  const formatUserProfile = (userData: any): UserData => {
+    // Ensure we have a properly formatted user object
+    const formattedData: UserData = { ...userData };
+    
+    // Normalize role and type fields
+    if (userData.type) {
+      formattedData.role = userData.type;
+    } else if (userData.role) {
+      formattedData.type = userData.role;
+    } else {
+      // Check localStorage as a fallback for role/type
       try {
-        // Get current user's email for cache key
-        const userData = localStorage.getItem('userData');
-        if (userData) {
-          const userEmail = JSON.parse(userData).email;
-          if (userEmail) {
-            // First, clear any old cached data
-            Object.keys(localStorage).forEach(key => {
-              if (key.startsWith('userProfileData_') && !key.includes(userEmail)) {
-                console.log(`UserInfoCard: Removing old cached profile for key: ${key}`);
-                localStorage.removeItem(key);
-              }
-            });
-
-            // Then save current user's data with user-specific key
-            const cacheKey = `userProfileData_${userEmail}`;
-            localStorage.setItem(cacheKey, JSON.stringify(formattedData));
-            console.log(`UserInfoCard: Cached profile data for ${userEmail}`);
+        const localData = localStorage.getItem('userData');
+        if (localData) {
+          const parsedData = JSON.parse(localData);
+          if (parsedData.type) {
+            formattedData.type = parsedData.type;
+            formattedData.role = parsedData.type;
+          } else if (parsedData.role) {
+            formattedData.role = parsedData.role;
+            formattedData.type = parsedData.role;
           }
         }
       } catch (e) {
-        console.error('UserInfoCard: Error caching profile data:', e);
+        console.error('Error getting role from localStorage:', e);
       }
+    }
+    
+    // Normalize zoneId
+    if (typeof formattedData.zoneId === 'string') {
+      formattedData.zoneId = { id: formattedData.zoneId };
+    } else if (!formattedData.zoneId) {
+      formattedData.zoneId = { id: "UTC" };
+    }
+    
+    return formattedData;
+  };
 
-      // Force state updates to happen in the correct order
-      if (componentMounted.current) {
-        // First update the profile data
-        setProfileData(formattedData);
+  // Function to fetch user details from the backend
+  const fetchUserDetails = async () => {
+    setLoading(true);
+    setError("");
+    console.log('UserInfoCard: Fetching user details, initial state:', { isReady, loading });
 
-        // Then update loading state - CRITICAL FIX HERE
-        console.log('UserInfoCard: About to set loading=false');
-        setLoading(false);
-        console.log('UserInfoCard: About to set isReady=true');
-        setIsReady(true);
-        console.log('UserInfoCard: State updates completed');
-        setError("");
-      }
-    } catch (err) {
-      console.error('UserInfoCard: Error fetching user details:', err);
-      if (componentMounted.current) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("An unknown error occurred");
+    try {
+      // Always try to get stored profile data from localStorage first as a backup
+      let backupData: UserData | null = null;
+      try {
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          backupData = parsedData;
+          console.log('UserInfoCard: Loaded backup data from localStorage:', parsedData);
         }
-        // Still need to end loading state on error
-        console.log('UserInfoCard: Setting loading=false due to error');
-        setLoading(false);
-        setIsReady(true);
+      } catch (e) {
+        console.error('UserInfoCard: Error parsing backup data:', e);
       }
+      
+      // Determine which endpoint to use based on whether we're viewing someone else's profile
+      // If clientId is provided, we're viewing a specific user's profile
+      const userIdToFetch = clientId || (backupData?.id?.toString() || '');
+      const endpoint = `https://api.akesomind.com/api/user/${userIdToFetch}`;
+      
+      console.log('UserInfoCard: Using API endpoint:', endpoint);
+      
+      // If we're already using a cached profile (not from this session)
+      // we could skip the fetch and use the stored data directly
+      
+      try {
+        const response = await fetchWithAuth(endpoint);
+        console.log('UserInfoCard: Full API response:', response);
+        
+        // If the response is valid, extract user data from it
+        if (response && response.id) {
+          const userProfile = formatUserProfile(response);
+          setProfileData(userProfile);
+          
+          // If we got valid profile data, store it in localStorage for this user
+          if (userProfile.email) {
+            try {
+              const cacheKey = `userProfileData_${userProfile.email}`;
+              localStorage.setItem(cacheKey, JSON.stringify(userProfile));
+              setIsCached(true);
+            } catch (e) {
+              console.error('UserInfoCard: Error caching profile data:', e);
+            }
+          }
+        } 
+        // If we don't get a valid response but have backup data, use that
+        else if (backupData) {
+          console.log('UserInfoCard: API returned empty or invalid data, using localStorage backup');
+          const userProfile = formatUserProfile(backupData);
+          setProfileData(userProfile);
+        }
+      } catch (err) {
+        console.error('UserInfoCard: Error fetching user details:', err);
+        setError("Failed to fetch user details. Using cached data if available.");
+        
+        // Use backup data on fetch error
+        if (backupData) {
+          console.log('UserInfoCard: Using backup data due to API error');
+          const userProfile = formatUserProfile(backupData);
+          setProfileData(userProfile);
+        }
+      }
+    } finally {
+      console.log('UserInfoCard: About to set loading=false');
+      setLoading(false);
+      console.log('UserInfoCard: About to set isReady=true');
+      setIsReady(true);
+      console.log('UserInfoCard: State updates completed');
     }
   };
 
@@ -569,8 +593,70 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     );
   }
 
+  // If we have no profile data or no ID, check if we can show minimal data
   if (!profileData || !profileData.id) {
-    console.log('UserInfoCard: Rendering no profile data state');
+    console.log('UserInfoCard: No profile ID found, checking if we can construct minimal profile');
+    
+    // Try to create a minimal profile from localStorage data if available
+    try {
+      const storedData = localStorage.getItem('userData');
+      if (storedData) {
+        const localData = JSON.parse(storedData);
+        console.log('UserInfoCard: Found localStorage data for minimal profile:', localData);
+        
+        // Create a minimal profile with required fields
+        const minimalProfileData = {
+          id: localData.id || 0,
+          firstName: localData.firstName || localData.email?.split('@')[0] || 'User',
+          lastName: localData.lastName || '',
+          email: localData.email || '',
+          type: localData.type || localData.role || profileData?.type || 'Unknown',
+          role: localData.role || localData.type || profileData?.type || 'Unknown'
+        };
+        
+        console.log('UserInfoCard: Created minimal profile:', minimalProfileData);
+        
+        // If we have enough data to show something useful
+        if (minimalProfileData.email || minimalProfileData.firstName) {
+          return (
+            <div className="p-5 border border-gray-200 rounded-2xl bg-white dark:border-gray-800 dark:bg-gray-900/20 lg:p-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col xs:flex-row gap-4 justify-between">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {minimalProfileData.firstName} {minimalProfileData.lastName}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {minimalProfileData.email}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                      {minimalProfileData.type}
+                    </p>
+                  </div>
+                  
+                  {/* Placeholder for avatar */}
+                  <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    <span className="text-xl text-gray-500 dark:text-gray-300">
+                      {minimalProfileData.firstName?.[0]?.toUpperCase() || '?'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end mt-4">
+                  <Button onClick={handleLogout} variant="outline" className="w-full sm:w-auto">
+                    Sign Out
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+      }
+    } catch (e) {
+      console.error('UserInfoCard: Error creating minimal profile:', e);
+    }
+    
+    console.log('UserInfoCard: Unable to create minimal profile, showing no data state');
     return (
       <div className="p-5 border border-gray-200 rounded-2xl bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20 lg:p-6">
         <div className="flex flex-col gap-4">
@@ -591,7 +677,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     avatarUrl,
     profileType: profileData.type || profileData.role || 'Unknown',
     firstName: profileData.firstName,
-    lastName: profileData.lastName
+    lastName: profileData.lastName,
+    canEdit: !clientId || (loggedInUserData && loggedInUserData.id && clientId === loggedInUserData.id.toString())
   });
 
   // Double check the avatar URL
@@ -599,129 +686,92 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     console.log('UserInfoCard: No avatar URL found');
   }
 
+  // Determine if user can edit this profile
+  const canEditProfile = !clientId || (loggedInUserData && loggedInUserData.id && clientId === loggedInUserData.id.toString());
+
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
-      {/* User Avatar - Added at the top of the profile */}
-      <div className="flex flex-col items-center mb-6">
-        <div className="w-24 h-24 rounded-full overflow-hidden mb-3">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={`${profileData.firstName} ${profileData.lastName}`}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                console.error('UserInfoCard: Avatar load error', e);
-                // Instead of setting another image that might fail, render initials
-                e.currentTarget.style.display = 'none';
-                const parent = e.currentTarget.parentElement;
-                if (parent) {
-                  // Create fallback div with user initials
-                  const fallbackDiv = document.createElement('div');
-                  fallbackDiv.className = 'w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center';
+      {/* User Avatar and Name Section */}
+      <div className="flex flex-col xs:flex-row justify-between items-center mb-6">
+        <div className="flex items-center mb-4 xs:mb-0">
+          <div className="w-16 h-16 rounded-full overflow-hidden mr-4">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={`${profileData.firstName} ${profileData.lastName}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  console.error('UserInfoCard: Avatar load error', e);
+                  // Instead of setting another image that might fail, render initials
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    // Create fallback div with user initials
+                    const fallbackDiv = document.createElement('div');
+                    fallbackDiv.className = 'w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center';
 
-                  const initialsSpan = document.createElement('span');
-                  initialsSpan.className = 'text-2xl font-semibold text-gray-500 dark:text-gray-400';
-                  initialsSpan.textContent = `${profileData.firstName?.charAt(0) || ''}${profileData.lastName?.charAt(0) || ''}`;
+                    const initialsSpan = document.createElement('span');
+                    initialsSpan.className = 'text-2xl font-semibold text-gray-500 dark:text-gray-400';
+                    initialsSpan.textContent = `${profileData.firstName?.charAt(0) || ''}${profileData.lastName?.charAt(0) || ''}`;
 
-                  fallbackDiv.appendChild(initialsSpan);
-                  parent.appendChild(fallbackDiv);
-                }
-              }}
-            />
-          ) : (
-            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-              <span className="text-2xl font-semibold text-gray-500 dark:text-gray-400">
-                {profileData.firstName?.charAt(0) || ''}
-                {profileData.lastName?.charAt(0) || ''}
-              </span>
-            </div>
-          )}
-        </div>
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-          {profileData.firstName} {profileData.lastName}
-        </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {profileData.email}
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
-            User Profile
-          </h4>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                ID
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.id}
-              </p>
-            </div>
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Email
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.email}
-              </p>
-            </div>
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                First Name
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.firstName}
-              </p>
-            </div>
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Last Name
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.lastName}
-              </p>
-            </div>
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Zone ID
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.zoneId?.id || ""}
-              </p>
-            </div>
+                    fallbackDiv.appendChild(initialsSpan);
+                    parent.appendChild(fallbackDiv);
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                <span className="text-2xl font-semibold text-gray-500 dark:text-gray-400">
+                  {profileData.firstName?.charAt(0) || ''}
+                  {profileData.lastName?.charAt(0) || ''}
+                </span>
+              </div>
+            )}
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+              {profileData.firstName} {profileData.lastName}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {profileData.email}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+              {profileData.type || profileData.role || 'User'}
+            </p>
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          <button
-            onClick={openModal}
-            className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto"
-          >
-            <svg
-              className="fill-current"
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+          {/* Only show edit button if it's the user's own profile */}
+          {canEditProfile && (
+            <button
+              onClick={openModal}
+              className="flex items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto"
             >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M15.0911 2.78206C14.2125 1.90338 12.7878 1.90338 11.9092 2.78206L4.57524 10.116C4.26682 10.4244 4.0547 10.8158 3.96468 11.2426L3.31231 14.3352C3.25997 14.5833 3.33653 14.841 3.51583 15.0203C3.69512 15.1996 3.95286 15.2761 4.20096 15.2238L7.29355 14.5714C7.72031 14.4814 8.11172 14.2693 8.42013 13.9609L15.7541 6.62695C16.6327 5.74827 16.6327 4.32365 15.7541 3.44497L15.0911 2.78206ZM12.9698 3.84272C13.2627 3.54982 13.7376 3.54982 14.0305 3.84272L14.6934 4.50563C14.9863 4.79852 14.9863 5.2734 14.6934 5.56629L14.044 6.21573L12.3204 4.49215L12.9698 3.84272ZM11.2597 5.55281L5.6359 11.1766C5.53309 11.2794 5.46238 11.4099 5.43238 11.5522L5.01758 13.5185L6.98394 13.1037C7.1262 13.0737 7.25666 13.003 7.35947 12.9002L12.9833 7.27639L11.2597 5.55281Z"
-                fill=""
-              />
-            </svg>
-            Edit
-          </button>
+              <svg
+                className="fill-current"
+                width="16"
+                height="16"
+                viewBox="0 0 18 18"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M15.0911 2.78206C14.2125 1.90338 12.7878 1.90338 11.9092 2.78206L4.57524 10.116C4.26682 10.4244 4.0547 10.8158 3.96468 11.2426L3.31231 14.3352C3.25997 14.5833 3.33653 14.841 3.51583 15.0203C3.69512 15.1996 3.95286 15.2761 4.20096 15.2238L7.29355 14.5714C7.72031 14.4814 8.11172 14.2693 8.42013 13.9609L15.7541 6.62695C16.6327 5.74827 16.6327 4.32365 15.7541 3.44497L15.0911 2.78206ZM12.9698 3.84272C13.2627 3.54982 13.7376 3.54982 14.0305 3.84272L14.6934 4.50563C14.9863 4.79852 14.9863 5.2734 14.6934 5.56629L14.044 6.21573L12.3204 4.49215L12.9698 3.84272ZM11.2597 5.55281L5.6359 11.1766C5.53309 11.2794 5.46238 11.4099 5.43238 11.5522L5.01758 13.5185L6.98394 13.1037C7.1262 13.0737 7.25666 13.003 7.35947 12.9002L12.9833 7.27639L11.2597 5.55281Z"
+                  fill=""
+                />
+              </svg>
+              Edit
+            </button>
+          )}
           <button
             onClick={handleLogout}
-            className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto mt-2"
+            className="flex items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto"
           >
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 18 18"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -888,6 +938,75 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
           </form>
         </div>
       </Modal>
+
+      {/* User Profile Details */}
+      <div className="mt-8">
+        <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">
+          User Profile
+        </h4>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
+          <div>
+            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+              ID
+            </p>
+            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+              {profileData.id}
+            </p>
+          </div>
+          <div>
+            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+              Email
+            </p>
+            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+              {profileData.email}
+            </p>
+          </div>
+          <div>
+            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+              First Name
+            </p>
+            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+              {profileData.firstName}
+            </p>
+          </div>
+          <div>
+            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+              Last Name
+            </p>
+            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+              {profileData.lastName}
+            </p>
+          </div>
+          {profileData.phone && (
+            <div>
+              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                Phone
+              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {profileData.phone}
+              </p>
+            </div>
+          )}
+          {profileData.birthday && (
+            <div>
+              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                Birthday
+              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {profileData.birthday}
+              </p>
+            </div>
+          )}
+          <div>
+            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+              Time Zone
+            </p>
+            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+              {profileData.zoneId?.id || profileData.zoneId || "UTC"}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
