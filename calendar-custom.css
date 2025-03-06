@@ -1,0 +1,56 @@
+/* Custom styles for the Calendar component */
+
+/* Style for the New Session button */
+.fc .fc-addSessionButton-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--brand-500, #3b82f6);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.fc .fc-addSessionButton-button:hover {
+  background-color: var(--brand-600, #2563eb);
+}
+
+/* Improve event styling */
+.event-fc-color {
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+/* Color classes for events */
+.fc-bg-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-left: 3px solid #ef4444;
+}
+
+.fc-bg-success {
+  background-color: rgba(34, 197, 94, 0.15);
+  border-left: 3px solid #22c55e;
+}
+
+.fc-bg-primary {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-left: 3px solid #3b82f6;
+}
+
+.fc-bg-warning {
+  background-color: rgba(234, 179, 8, 0.15);
+  border-left: 3px solid #eab308;
+}
+
+/* Dark mode adjustments */
+.dark .fc .fc-addSessionButton-button {
+  background-color: var(--brand-500, #3b82f6);
+}
+
+.dark .fc .fc-addSessionButton-button:hover {
+  background-color: var(--brand-600, #2563eb);
+} 

@@ -1,10 +1,167 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { Link } from "react-router";
+import { useOwnProfile, ProfileData } from "../../hooks/useProfileData";
+import { Modal } from "../ui/Modal";
+import Button from "../ui/button/Button";
+import Input from "../form/input/InputField";
+import Label from "../form/Label";
+import { getUserData } from "../../utils/auth";
+
+// Extended ProfileData interface that includes additional fields
+interface ExtendedProfileData {
+  id?: string | number;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  role?: string;
+  type?: string;
+  avatar?: string;
+  zoneId?: string | { id: string };
+  // Therapist-specific fields
+  specialization?: string;
+  yearsOfExperience?: number;
+  education?: string;
+  bio?: string;
+  languages?: string[];
+  // Client-specific fields
+  birthday?: string;
+  // Common settings
+  darkTheme?: boolean;
+  language?: string;
+  muteNotifications?: boolean;
+  [key: string]: any; // Allow other properties
+}
 
 export default function UserDropdown() {
+  const componentMounted = useRef(true);
   const [isOpen, setIsOpen] = useState(false);
+  const { data: user, loading, refetch } = useOwnProfile();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [profileData, setProfileData] = useState<ExtendedProfileData>({});
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isCached, setIsCached] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  
+  // Get cached data on component init
+  const getCachedData = () => {
+    try {
+      // Get current user's email
+      const userData = localStorage.getItem('userData');
+      if (!userData) {
+        console.log('UserDropdown: No user data in localStorage, cannot verify cache ownership');
+        return null;
+      }
+
+      const currentUserEmail = JSON.parse(userData).email;
+      if (!currentUserEmail) {
+        console.log('UserDropdown: No email found in userData, cannot verify cache ownership');
+        return null;
+      }
+
+      // Get cached profile with user-specific key
+      const cacheKey = `userProfileData_${currentUserEmail}`;
+      const cachedData = localStorage.getItem(cacheKey);
+
+      if (cachedData) {
+        const parsedData = JSON.parse(cachedData);
+
+        // Verify the cached data belongs to the current user
+        if (parsedData.email === currentUserEmail) {
+          console.log(`UserDropdown: Found cached profile data for ${currentUserEmail}`);
+          setIsCached(true);
+          return parsedData;
+        } else {
+          console.log('UserDropdown: Cached profile data email mismatch, clearing invalid cache');
+          localStorage.removeItem(cacheKey);
+          return null;
+        }
+      }
+    } catch (e) {
+      console.error('UserDropdown: Error getting cached profile data:', e);
+    }
+    return null;
+  };
+
+  // Update profileData when user data changes or on component mount
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      // Try to use cached data first
+      const cachedData = getCachedData();
+      if (cachedData) {
+        console.log('UserDropdown: Using cached profile data');
+        setProfileData(cachedData);
+        if (cachedData.avatar) {
+          setAvatarUrl(cachedData.avatar);
+        }
+        return;
+      }
+
+      try {
+        // Otherwise fetch fresh data from server
+        console.log('UserDropdown: Fetching user data from server');
+        const userData = await getUserData();
+        
+        if (userData) {
+          console.log('UserDropdown: User data received from server');
+          setProfileData(userData);
+          
+          // Cache the data for future use
+          try {
+            const cacheKey = `userProfileData_${userData.email}`;
+            localStorage.setItem(cacheKey, JSON.stringify(userData));
+            console.log(`UserDropdown: Cached profile data for ${userData.email}`);
+          } catch (cacheError) {
+            console.error('UserDropdown: Error caching profile data:', cacheError);
+          }
+          
+          if (userData.avatar) {
+            setAvatarUrl(userData.avatar);
+          }
+        }
+      } catch (error) {
+        console.error('UserDropdown: Error fetching user data:', error);
+        // Fallback to useOwnProfile data if available
+        if (user) {
+          setProfileData({
+            id: user.id,
+            email: user.email || "",
+            firstName: user.firstName || "",
+            lastName: user.lastName || "",
+            role: user.role,
+            avatar: user.avatar,
+            phone: (user as any).phone || "",
+            // Default timezone
+            zoneId: { id: "UTC" },
+            // Add any role-specific fields
+            ...(user.role === 'Therapist' ? {
+              specialization: (user as any).specialization || "",
+              yearsOfExperience: (user as any).yearsOfExperience || 0,
+              education: (user as any).education || "",
+              bio: (user as any).bio || "",
+              languages: (user as any).languages || [],
+            } : {
+              birthday: (user as any).birthday || ""
+            })
+          });
+          
+          if (user.avatar) {
+            setAvatarUrl(user.avatar);
+          }
+        }
+      }
+    };
+
+    fetchProfileData();
+    
+    return () => {
+      componentMounted.current = false;
+    };
+  }, [user]);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -13,6 +170,133 @@ export default function UserDropdown() {
   function closeDropdown() {
     setIsOpen(false);
   }
+
+  const handleOpenEditModal = () => {
+    setIsEditModalOpen(true);
+    closeDropdown();
+    // Reset status messages when opening modal
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+
+  const handleCloseModal = () => {
+    setIsEditModalOpen(false);
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+  
+  // Handle change for input fields
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setProfileData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Format body data for API
+  const formatProfileForAPI = (data: ExtendedProfileData) => {
+    // Deep clone to avoid unintended side effects
+    const formattedData = JSON.parse(JSON.stringify(data));
+    
+    // Ensure zoneId is formatted correctly
+    if (typeof formattedData.zoneId === 'object' && formattedData.zoneId !== null) {
+      // Already in correct format
+    } else if (typeof formattedData.zoneId === 'string') {
+      formattedData.zoneId = { id: formattedData.zoneId };
+    } else {
+      // Default timezone
+      formattedData.zoneId = { id: "UTC" };
+    }
+    
+    return formattedData;
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSaveLoading(true);
+      setSaveError(null);
+      
+      const formattedData = formatProfileForAPI(profileData);
+      const bodyString = JSON.stringify(formattedData);
+      
+      console.log('UserDropdown: Saving updated profile:', formattedData);
+      
+      // First attempt with direct fetch for better error handling
+      try {
+        console.log('UserDropdown: Attempting direct API call');
+        const directResponse = await fetch('https://api.akesomind.com/api/user', {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem("accessToken")}`
+          },
+          body: bodyString,
+        });
+        
+        if (directResponse.ok) {
+          const data = await directResponse.json();
+          console.log('UserDropdown: Profile updated successfully:', data);
+          
+          // Update local data
+          setProfileData(data);
+          
+          // Cache the updated data
+          const cacheKey = `userProfileData_${data.email}`;
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+          
+          // Update avatar if available
+          if (data.avatar) {
+            setAvatarUrl(data.avatar);
+          }
+          
+          // Refresh profile data in useOwnProfile hook
+          refetch();
+          
+          setSaveSuccess(true);
+          
+          // Close modal after a short delay to show success message
+          setTimeout(() => {
+            if (componentMounted.current) {
+              setIsEditModalOpen(false);
+              setSaveSuccess(false);
+            }
+          }, 1500);
+          
+          return;
+        }
+        
+        const errorText = await directResponse.text();
+        console.error('UserDropdown: Direct API error:', errorText);
+        throw new Error(`Failed to update profile: ${directResponse.statusText}`);
+      } catch (directError) {
+        console.error('UserDropdown: Direct API exception:', directError);
+        throw directError;
+      }
+    } catch (error) {
+      console.error('UserDropdown: Failed to update profile:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to update profile');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // Format phone number based on country code (simple implementation)
+  const formatPhoneNumber = (phone: string) => {
+    // If phone number already has country code, return as is
+    if (phone?.startsWith('+')) return phone;
+    
+    // Default to +1 (US) if no country code
+    return phone ? `+1 ${phone}` : '';
+  };
+
+  // Get phone input placeholder based on user's role
+  const getPhonePlaceholder = () => {
+    return '+1 (555) 123-4567';
+  };
+  
+  // Determine if user is therapist or client
+  const isTherapist = profileData?.role === 'Therapist' || profileData?.type === 'Therapist';
+  
   return (
     <div className="relative">
       <button
@@ -20,11 +304,20 @@ export default function UserDropdown() {
         className="flex items-center text-gray-700 dark:text-gray-400"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <img src="/images/user/user-01.jpg" alt="User" />
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="User" className="h-full w-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+              <span className="text-xl font-semibold text-gray-500 dark:text-gray-400">
+                {profileData?.firstName?.charAt(0) || ''}
+                {profileData?.lastName?.charAt(0) || ''}
+              </span>
+            </div>
+          )}
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">
-          Emirhan Boruch
+          {loading ? "Loading..." : `${profileData?.firstName || ""} ${profileData?.lastName || ""}`}
         </span>
 
         <svg
@@ -54,19 +347,18 @@ export default function UserDropdown() {
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            Emirhan Boruch
+            {loading ? "Loading..." : `${profileData?.firstName || ""} ${profileData?.lastName || ""}`}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            emirhanboruch51@gmail.com
+            {profileData?.email || ""}
           </span>
         </div>
 
         <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
           <li>
             <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
-              to="/profile"
+              onItemClick={handleOpenEditModal}
+              tag="button"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
@@ -112,31 +404,6 @@ export default function UserDropdown() {
               Account settings
             </DropdownItem>
           </li>
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
-              to="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              <svg
-                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M3.5 12C3.5 7.30558 7.30558 3.5 12 3.5C16.6944 3.5 20.5 7.30558 20.5 12C20.5 16.6944 16.6944 20.5 12 20.5C7.30558 20.5 3.5 16.6944 3.5 12ZM12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM11.0991 7.52507C11.0991 8.02213 11.5021 8.42507 11.9991 8.42507H12.0001C12.4972 8.42507 12.9001 8.02213 12.9001 7.52507C12.9001 7.02802 12.4972 6.62507 12.0001 6.62507H11.9991C11.5021 6.62507 11.0991 7.02802 11.0991 7.52507ZM12.0001 17.3714C11.5859 17.3714 11.2501 17.0356 11.2501 16.6214V10.9449C11.2501 10.5307 11.5859 10.1949 12.0001 10.1949C12.4143 10.1949 12.7501 10.5307 12.7501 10.9449V16.6214C12.7501 17.0356 12.4143 17.3714 12.0001 17.3714Z"
-                  fill=""
-                />
-              </svg>
-              Support
-            </DropdownItem>
-          </li>
         </ul>
         <Link
           to="/signin"
@@ -160,6 +427,252 @@ export default function UserDropdown() {
           Sign out
         </Link>
       </Dropdown>
+
+      {/* Profile Edit Modal with unified style - matches UserInfoCard */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseModal}
+        className="max-w-[700px] m-4"
+      >
+        <div className="no-scrollbar relative w-full max-w-[700px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
+          <div className="px-2 pr-14">
+            <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
+              Edit User Profile
+            </h4>
+            <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
+              Update your details to keep your profile up-to-date.
+            </p>
+          </div>
+          
+          <form className="flex flex-col" onSubmit={(e) => { e.preventDefault(); handleSaveProfile(); }}>
+            <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+                {/* Email */}
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    name="email"
+                    value={profileData.email || ""}
+                    onChange={handleInputChange}
+                    placeholder="your.email@example.com"
+                  />
+                </div>
+                
+                {/* First Name */}
+                <div>
+                  <Label>First Name</Label>
+                  <Input
+                    type="text"
+                    name="firstName"
+                    value={profileData.firstName || ""}
+                    onChange={handleInputChange}
+                    placeholder="Your first name"
+                  />
+                </div>
+                
+                {/* Last Name */}
+                <div>
+                  <Label>Last Name</Label>
+                  <Input
+                    type="text"
+                    name="lastName"
+                    value={profileData.lastName || ""}
+                    onChange={handleInputChange}
+                    placeholder="Your last name"
+                  />
+                </div>
+                
+                {/* Phone */}
+                <div>
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    name="phone"
+                    value={profileData.phone || ""}
+                    onChange={handleInputChange}
+                    placeholder={getPhonePlaceholder()}
+                  />
+                </div>
+                
+                {/* Time Zone - Added to match UserInfoCard */}
+                <div>
+                  <Label>Time Zone</Label>
+                  <select
+                    className="w-full py-2 px-3 text-sm text-gray-800 bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring focus:ring-brand-500/10"
+                    name="zoneId"
+                    value={typeof profileData.zoneId === 'object' && profileData.zoneId ? 
+                      profileData.zoneId.id || "UTC" : 
+                      profileData.zoneId || "UTC"}
+                    onChange={(e) => {
+                      const zoneIdValue = e.target.value;
+                      setProfileData({
+                        ...profileData,
+                        zoneId: {
+                          id: zoneIdValue
+                        },
+                      });
+                    }}
+                  >
+                    <option value="UTC">UTC</option>
+                    <option value="Europe/London">Europe/London</option>
+                    <option value="Europe/Paris">Europe/Paris</option>
+                    <option value="Europe/Berlin">Europe/Berlin</option>
+                    <option value="America/New_York">America/New_York</option>
+                    <option value="America/Chicago">America/Chicago</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo</option>
+                    <option value="Asia/Shanghai">Asia/Shanghai</option>
+                    <option value="Australia/Sydney">Australia/Sydney</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Select your timezone
+                  </p>
+                </div>
+                
+                {/* Therapist-specific fields */}
+                {isTherapist && (
+                  <>
+                    <div>
+                      <Label>Specialization</Label>
+                      <Input
+                        type="text"
+                        name="specialization"
+                        value={profileData.specialization || ""}
+                        onChange={handleInputChange}
+                        placeholder="e.g., Cognitive Behavioral Therapy"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label>Years of Experience</Label>
+                      <Input
+                        type="number"
+                        name="yearsOfExperience"
+                        value={profileData.yearsOfExperience || 0}
+                        onChange={handleInputChange}
+                        placeholder="Number of years in practice"
+                      />
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label>Education</Label>
+                      <Input
+                        type="text"
+                        name="education"
+                        value={profileData.education || ""}
+                        onChange={handleInputChange}
+                        placeholder="e.g., Ph.D. in Psychology, Harvard University"
+                      />
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label>Biography</Label>
+                      <textarea
+                        name="bio"
+                        value={profileData.bio || ""}
+                        onChange={handleInputChange}
+                        rows={4}
+                        placeholder="Tell clients about yourself, your approach, and your experience"
+                        className="w-full rounded-lg border border-stroke bg-transparent py-2 px-4 outline-none focus:border-primary focus-visible:shadow-none dark:border-strokedark dark:bg-meta-4 dark:focus:border-primary"
+                      />
+                    </div>
+                  </>
+                )}
+                
+                {/* Client-specific fields */}
+                {!isTherapist && (
+                  <div>
+                    <Label>Birthday</Label>
+                    <Input
+                      type="date"
+                      name="birthday"
+                      value={profileData.birthday?.split('T')[0] || ""}
+                      onChange={handleInputChange}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </div>
+                )}
+                
+                {/* Profile Picture */}
+                <div className="col-span-2 mt-4">
+                  <Label>Profile Picture</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="h-20 w-20 overflow-hidden rounded-full">
+                      {avatarUrl ? (
+                        <img 
+                          src={avatarUrl} 
+                          alt="Profile" 
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            console.error('UserDropdown: Avatar load error', e);
+                            e.currentTarget.style.display = 'none';
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              const fallbackDiv = document.createElement('div');
+                              fallbackDiv.className = 'w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center';
+                              
+                              const initialsSpan = document.createElement('span');
+                              initialsSpan.className = 'text-xl font-semibold text-gray-500 dark:text-gray-400';
+                              initialsSpan.textContent = `${profileData.firstName?.charAt(0) || ''}${profileData.lastName?.charAt(0) || ''}`;
+                              
+                              fallbackDiv.appendChild(initialsSpan);
+                              parent.appendChild(fallbackDiv);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                          <span className="text-xl font-semibold text-gray-500 dark:text-gray-400">
+                            {profileData.firstName?.charAt(0) || ''}
+                            {profileData.lastName?.charAt(0) || ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => alert("Profile picture upload functionality would be implemented here")}
+                    >
+                      Upload New Picture
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Upload a profile picture (JPG or PNG, max 2MB)
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {saveError && (
+              <div className="px-2 mt-4">
+                <p className="text-red-500 text-sm">{saveError}</p>
+              </div>
+            )}
+            
+            {saveSuccess && (
+              <div className="px-2 mt-4">
+                <p className="text-green-500 text-sm">Profile updated successfully!</p>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
+              <Button size="sm" variant="outline" onClick={handleCloseModal}>
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveProfile}
+                disabled={saveLoading}
+                className={saveLoading ? "opacity-70 cursor-not-allowed" : ""}
+              >
+                {saveLoading ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Modal>
     </div>
   );
 }

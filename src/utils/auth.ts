@@ -692,32 +692,10 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 
     if (!response.ok) {
       if (response.status === 401) {
-        console.log('Authentication failed (401 Unauthorized)');
-
-        // Abort the request to prevent further console errors
-        controller.abort();
-
-        // Check if we have cached user data
-        const userData = localStorage.getItem('userData');
-
-        // Only redirect to login for specific authentication verification endpoints
-        if (url === 'https://api.akesomind.com/api/auth/verify' ||
-          url === 'https://api.akesomind.com/api/auth/check') {
-          console.log('Authentication verification failed, redirecting to login');
-          localStorage.removeItem('userData');
-          window.location.href = '/signin';
-          throw new Error('Session expired');
-        }
-
-        // For user profile endpoint, return cached user data
-        if (url.includes('/api/user') && userData) {
-          console.log('Returning cached user data for profile');
-          return JSON.parse(userData);
-        }
-
-        // For other endpoints, return empty data but don't redirect
-        console.log('Continuing with empty data due to 401');
-        return url.includes('list') ? { list: [], total: 0 } : {};
+        console.log('Authentication failed, redirecting to login');
+        localStorage.removeItem('userData');
+        window.location.href = '/signin';
+        throw new Error('Session expired');
       }
 
       // Handle other error statuses

@@ -25,6 +25,7 @@
     "clsx": "^2.1.1",
     "cookie": "^1.0.2",
     "flatpickr": "^4.6.13",
+    "js-md5": "^0.8.3",
     "postcss": "^8.4.49",
     "react": "^18.3.1",
     "react-apexcharts": "^1.6.0",
@@ -69,6 +70,8 @@
     ]
   },
   "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/js-md5": "^0.7.2",
     "@types/react-flatpickr": "^3.8.11",
     "@types/react-router-dom": "^5.3.3",
     "tailwindcss": "^3.4.15"

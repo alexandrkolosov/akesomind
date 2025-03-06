@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/Modal";
 import Button from "../ui/button/Button";
@@ -37,33 +37,25 @@ interface UserData {
 }
 
 export default function UserInfoCard({ clientId }: UserInfoCardProps) {
-  console.log('UserInfoCard: Component initializing', { clientId });
+  // Reduce console logging to essential events only
+  const debugLog = useCallback((message: string, data?: any) => {
+    if (process.env.NODE_ENV === 'production') return;
+    if (data) {
+      console.log(message, data);
+    } else {
+      console.log(message);
+    }
+  }, []);
+
+  debugLog('UserInfoCard: Component initializing', { clientId });
   const componentMounted = useRef(true);
   const { isOpen, openModal, closeModal } = useModal();
   const [isReady, setIsReady] = useState(false);
   const [loggedInUserData, setLoggedInUserData] = useState<any>(null);
   const [isCached, setIsCached] = useState(false);
 
-  // Load the current user's data from localStorage on mount
-  useEffect(() => {
-    try {
-      const userDataStr = localStorage.getItem('userData');
-      if (userDataStr) {
-        const parsedUserData = JSON.parse(userDataStr);
-        console.log('UserInfoCard: Loaded logged-in user data:', {
-          id: parsedUserData.id,
-          email: parsedUserData.email,
-          role: parsedUserData.role || parsedUserData.type || 'Unknown'
-        });
-        setLoggedInUserData(parsedUserData);
-      }
-    } catch (e) {
-      console.error('UserInfoCard: Error loading logged-in user data:', e);
-    }
-  }, []);
-
-  // Check for cached data on component init
-  const getCachedData = () => {
+  // Memoize data loading functions
+  const getCachedData = useCallback(() => {
     try {
       // Get current user's email
       const userData = localStorage.getItem('userData');
@@ -99,7 +91,26 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       console.error('UserInfoCard: Error getting cached profile data:', e);
     }
     return null;
-  };
+  }, [clientId]);
+
+  // Load the current user's data from localStorage only once on mount
+  useEffect(() => {
+    try {
+      const userDataStr = localStorage.getItem('userData');
+      if (userDataStr) {
+        const parsedUserData = JSON.parse(userDataStr);
+        debugLog('UserInfoCard: Loaded logged-in user data:', {
+          id: parsedUserData.id,
+          email: parsedUserData.email,
+          role: parsedUserData.role || parsedUserData.type || 'Unknown'
+        });
+        setLoggedInUserData(parsedUserData);
+      }
+    } catch (e) {
+      console.error('UserInfoCard: Error loading user data from localStorage:', e);
+    }
+    // Only run once on mount
+  }, [debugLog]);
 
   // The data you receive from your GET endpoint
   // should align with your UpdateUser class
@@ -192,8 +203,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     return formattedData;
   };
 
-  // Function to fetch user details from the backend
-  const fetchUserDetails = async () => {
+  // Memoize fetchUserDetails to prevent recreating this function on each render
+  const fetchUserDetails = useCallback(async () => {
     setLoading(true);
     setError("");
     console.log('UserInfoCard: Fetching user details, initial state:', { isReady, loading });
@@ -260,13 +271,12 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         }
       }
     } finally {
-      console.log('UserInfoCard: About to set loading=false');
+      // Combine these state updates to reduce renders
+      debugLog('UserInfoCard: Completing data fetch');
       setLoading(false);
-      console.log('UserInfoCard: About to set isReady=true');
       setIsReady(true);
-      console.log('UserInfoCard: State updates completed');
     }
-  };
+  }, [clientId, debugLog]);
 
   // Reset state when clientId changes
   useEffect(() => {
@@ -302,7 +312,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       // Note: Not setting componentMounted.current = false;
       // This is intentional to allow state updates to complete
     };
-  }, [clientId]);
+  }, [clientId, fetchUserDetails]);
 
   // Safety check - if we have profile data in localStorage but component is still loading,
   // this acts as a recovery mechanism for components that unmount during data fetch
@@ -330,44 +340,31 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     return () => {
       clearTimeout(recoveryTimer);
     };
-  }, [loading, isReady]);
+  }, [loading, isReady, fetchUserDetails]);
 
-  // Add debug logging to track component lifecycle
+  // Optimize the debug logging useEffect to run less frequently
   useEffect(() => {
-    console.log('UserInfoCard: Component mount/update. Current state:', {
-      isReady,
-      loading,
-      hasProfileData: Boolean(profileData && profileData.id),
-      profileType: profileData?.type || profileData?.role || 'Unknown',
-      isCached: Boolean(getCachedData())
-    });
+    // Only log significant state changes, not every render
+    if (isReady) {
+      debugLog('UserInfoCard: Component ready with profile data', {
+        hasProfileData: Boolean(profileData && profileData.id),
+        profileType: profileData?.type || profileData?.role || 'Unknown',
+        isCached: Boolean(getCachedData())
+      });
+    }
 
     return () => {
-      // Instead of just logging, ensure we preserve our state
-      console.log('UserInfoCard: Component unmounting - preserving data');
-      if (profileData && profileData.id) {
+      // Preserve data on unmount, but minimize logging
+      if (profileData && profileData.id && profileData.email) {
         try {
-          // Get current user's email for cache key
-          const userData = localStorage.getItem('userData');
-          if (userData) {
-            const userEmail = JSON.parse(userData).email;
-            if (userEmail) {
-              // Only save if email matches the profile data
-              if (userEmail === profileData.email) {
-                const cacheKey = `userProfileData_${userEmail}`;
-                localStorage.setItem(cacheKey, JSON.stringify(profileData));
-                console.log(`UserInfoCard: Preserved profile data for ${userEmail} during unmount`);
-              } else {
-                console.log('UserInfoCard: Email mismatch during unmount, not preserving data');
-              }
-            }
-          }
+          const cacheKey = `userProfileData_${profileData.email}`;
+          localStorage.setItem(cacheKey, JSON.stringify(profileData));
         } catch (e) {
           console.error('UserInfoCard: Error preserving profile data during unmount:', e);
         }
       }
     };
-  }, [isReady, loading, profileData]);
+  }, [isReady, profileData, getCachedData, debugLog]);
 
   // Add a dedicated useEffect to track loading state changes
   useEffect(() => {

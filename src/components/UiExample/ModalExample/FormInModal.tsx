@@ -31,27 +31,27 @@ export default function FormInModal() {
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
             <div className="col-span-1">
               <Label>First Name</Label>
-              <Input type="text" placeholder="Emirhan" />
+              <Input type="text" placeholder="Name" />
             </div>
 
             <div className="col-span-1">
               <Label>Last Name</Label>
-              <Input type="text" placeholder="Boruch" />
+              <Input type="text" placeholder="Surname" />
             </div>
 
             <div className="col-span-1">
               <Label>Last Name</Label>
-              <Input type="email" placeholder="emirhanboruch55@gmail.com" />
+              <Input type="email" placeholder="email" />
             </div>
 
             <div className="col-span-1">
               <Label>Phone</Label>
-              <Input type="text" placeholder="+09 363 398 46" />
+              <Input type="text" placeholder="Phone Number" />
             </div>
 
             <div className="col-span-1 sm:col-span-2">
               <Label>Bio</Label>
-              <Input type="text" placeholder="Team Manager" />
+              <Input type="text" placeholder="Tell about yourself" />
             </div>
           </div>
 

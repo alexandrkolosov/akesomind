@@ -11,6 +11,7 @@ export interface ProfileData {
   timezone?: string;
   avatar?: string;
   role?: string;
+  type?: string; // Some API responses use 'type' instead of 'role'
   // Add other common fields as needed
 }
 
@@ -45,6 +46,42 @@ interface ProfileHookResult {
   error: Error | null;
   data: ProfileData | null;
   refetch: () => void;
+}
+
+/**
+ * Helper function to determine user role from data
+ */
+function determineUserRole(data: any): string | undefined {
+  // Check multiple possible fields that might contain role information
+  if (data?.role && typeof data.role === 'string') {
+    // If role exists, normalize casing
+    if (data.role.toLowerCase() === 'therapist') return 'Therapist';
+    if (data.role.toLowerCase() === 'client') return 'Client';
+    return data.role;
+  }
+  
+  // Try the 'type' field which some APIs use
+  if (data?.type && typeof data.type === 'string') {
+    // Normalize casing
+    if (data.type.toLowerCase() === 'therapist') return 'Therapist';
+    if (data.type.toLowerCase() === 'client') return 'Client';
+    return data.type;
+  }
+  
+  // Try localStorage as last resort
+  try {
+    const storedData = localStorage.getItem('userData');
+    if (storedData) {
+      const parsedData = JSON.parse(storedData);
+      // Check both 'role' and 'type' in localStorage
+      if (parsedData.role) return parsedData.role;
+      if (parsedData.type) return parsedData.type;
+    }
+  } catch (e) {
+    console.warn('Error reading role/type from localStorage:', e);
+  }
+  
+  return undefined;
 }
 
 /**
@@ -83,6 +120,17 @@ export function useOwnProfile(): ProfileHookResult {
       }
       
       const profileData = await response.json();
+      
+      // Determine user role using our helper function
+      const role = determineUserRole(profileData);
+      if (role) {
+        profileData.role = role;
+        console.log('useOwnProfile: Role determined:', role);
+      } else {
+        console.log('useOwnProfile: Could not determine role - defaulting to Client');
+        profileData.role = 'Client'; // Default role if not found
+      }
+      
       console.log('useOwnProfile: Profile data received:', {
         id: profileData?.id,
         email: profileData?.email,
@@ -91,29 +139,24 @@ export function useOwnProfile(): ProfileHookResult {
         lastName: profileData?.lastName,
       });
       
-      // Special handling for role
-      // If role is present but casing is wrong for "Therapist", fix it
-      if (profileData?.role && typeof profileData.role === 'string' && 
-          profileData.role.toLowerCase() === 'therapist' && profileData.role !== 'Therapist') {
-        console.log('useOwnProfile: Correcting therapist role casing');
-        profileData.role = 'Therapist';
-      }
-      
-      // If no role in profile data but exists in localStorage, use that
-      if (!profileData?.role) {
-        console.warn('useOwnProfile: No role in profile data, checking localStorage');
-        try {
-          const storedData = localStorage.getItem('userData');
-          if (storedData) {
-            const parsedData = JSON.parse(storedData);
-            if (parsedData.role) {
-              console.log('useOwnProfile: Using role from localStorage:', parsedData.role);
-              profileData.role = parsedData.role;
-            }
+      // Store the profile data in localStorage to ensure it's available for other components
+      try {
+        // Only update localStorage if we have valid data
+        if (profileData && profileData.id) {
+          const existingData = localStorage.getItem('userData');
+          if (existingData) {
+            // Update existing data with new values while preserving any fields that aren't in the profile
+            const parsedExisting = JSON.parse(existingData);
+            const mergedData = { ...parsedExisting, ...profileData };
+            localStorage.setItem('userData', JSON.stringify(mergedData));
+            console.log('useOwnProfile: Updated localStorage with merged profile data');
+          } else {
+            localStorage.setItem('userData', JSON.stringify(profileData));
+            console.log('useOwnProfile: Stored profile data in localStorage');
           }
-        } catch (e) {
-          console.error('useOwnProfile: Error getting role from localStorage:', e);
         }
+      } catch (e) {
+        console.warn('useOwnProfile: Error storing profile in localStorage:', e);
       }
       
       setData(profileData);
@@ -121,6 +164,21 @@ export function useOwnProfile(): ProfileHookResult {
     } catch (err) {
       console.error('useOwnProfile: Error:', err);
       setError(err instanceof Error ? err : new Error('An unknown error occurred'));
+      
+      // If we failed to get profile data from the API but have localStorage data, use that as fallback
+      try {
+        const storedData = localStorage.getItem('userData');
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          if (parsedData && parsedData.id) {
+            console.log('useOwnProfile: Using localStorage data as fallback');
+            setData(parsedData);
+            setError(null); // Clear error since we have fallback data
+          }
+        }
+      } catch (e) {
+        console.error('useOwnProfile: Error using localStorage fallback:', e);
+      }
     } finally {
       setLoading(false);
       console.log('useOwnProfile: Loading set to false');
@@ -172,9 +230,21 @@ export function useClientProfile(clientId: string): ProfileHookResult {
       }
       
       const profileData = await response.json();
+      
+      // Ensure role is set to 'Client' for client profiles
+      if (!profileData.role && !profileData.type) {
+        profileData.role = 'Client';
+      }
+      
       setData(profileData as ClientProfileData);
     } catch (err) {
+      console.error('useClientProfile: Error fetching client data:', err);
       setError(err instanceof Error ? err : new Error('An unknown error occurred'));
+      
+      // If we get a 404, it might mean the user doesn't exist or isn't accessible
+      if (err instanceof Error && err.message.includes('404')) {
+        console.warn(`useClientProfile: Client with ID ${clientId} not found or not accessible`);
+      }
     } finally {
       setLoading(false);
     }
@@ -182,7 +252,7 @@ export function useClientProfile(clientId: string): ProfileHookResult {
   
   useEffect(() => {
     fetchClientProfile();
-  }, [clientId]);
+  }, [fetchClientProfile, clientId]);
   
   return { loading, error, data, refetch: fetchClientProfile };
 } 

@@ -1,0 +1,67 @@
+/* Custom styles for the Calendar component */
+
+/* Style for the New Session button - matching "Subscribe to PRO" button */
+.fc .fc-addSessionButton-button {
+  border-radius: 0.5rem !important;
+  border: 0 !important;
+  background-color: var(--primary, #3b82f6) !important;
+  padding: 0.625rem 1rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: white !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  margin-left: 0.75rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.2s ease-in-out !important;
+}
+
+.fc .fc-addSessionButton-button:hover {
+  background-color: var(--primary-hover, #2563eb) !important;
+}
+
+/* Fix button position in toolbar */
+.fc-header-toolbar.fc-toolbar {
+  padding: 1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.75rem !important;
+}
+
+/* Improve event styling */
+.event-fc-color {
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+/* Color classes for events */
+.fc-bg-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-left: 3px solid #ef4444;
+}
+
+.fc-bg-success {
+  background-color: rgba(34, 197, 94, 0.15);
+  border-left: 3px solid #22c55e;
+}
+
+.fc-bg-primary {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-left: 3px solid #3b82f6;
+}
+
+.fc-bg-warning {
+  background-color: rgba(234, 179, 8, 0.15);
+  border-left: 3px solid #eab308;
+}
+
+/* Dark mode adjustments */
+.dark .fc .fc-addSessionButton-button {
+  background-color: var(--primary, #3b82f6) !important;
+}
+
+.dark .fc .fc-addSessionButton-button:hover {
+  background-color: var(--primary-hover, #2563eb) !important;
+} 
