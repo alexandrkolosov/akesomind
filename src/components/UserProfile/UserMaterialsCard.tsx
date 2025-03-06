@@ -233,6 +233,9 @@ const ALLOWED_FILE_TYPES = [
 // File extensions for validation
 const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.jpeg', '.jpg', '.epub'];
 
+// Human-readable file types for display
+const HUMAN_READABLE_FILE_TYPES = 'PDF, Word documents (DOC/DOCX), text files (TXT), images (JPEG/JPG), or E-books (EPUB)';
+
 // Add a style tag for the highlight animation
 const uploadFormHighlightStyle = `
   @keyframes highlightBorder {
@@ -264,6 +267,11 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
   const logMessage = useCallback((message: string) => {
     if (process.env.NODE_ENV !== 'production') {
       console.log(message);
+      // Add timestamp to the log message
+      const timestamp = new Date().toISOString();
+      const logWithTimestamp = `[${timestamp}] ${message}`;
+      // Add the message to debug info state for display
+      setDebugInfo(prev => [...prev, logWithTimestamp]);
     }
   }, []);
 
@@ -274,44 +282,54 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     logMessage(`CLIENT VIEW: Fetching materials for client ID: ${clientId}`);
 
     try {
-      // Simulate API call with mock data
-      setTimeout(() => {
-        const clientIdNum = parseInt(clientId, 10);
-        const clientMaterials = MOCK_MATERIALS.filter(
-          assignment => assignment.client.id === clientIdNum
-        );
-        
-        logMessage(`CLIENT VIEW: Found ${clientMaterials.length} materials for client ${clientId}`);
-        setMaterials(clientMaterials);
-        setIsLoading(false);
-      }, 500);
+      // Since the API is not available, fall back to mock data
+      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material/assigment/client/${clientId}`);
+      logMessage('Using mock data for development');
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const clientIdNum = parseInt(clientId, 10);
+      const clientMaterials = MOCK_MATERIALS.filter(
+        assignment => assignment.client.id === clientIdNum
+      );
+      
+      logMessage(`CLIENT VIEW: Found ${clientMaterials.length} mock materials for client ${clientId}`);
+      setMaterials(clientMaterials);
+      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching client materials:", error);
+      logMessage(`ERROR fetching client materials: ${error instanceof Error ? error.message : String(error)}`);
       setError("An error occurred while loading your materials.");
       setIsLoading(false);
     }
   }, [logMessage]);
 
-  // Similar pattern for other fetch functions
+  // Similar pattern for therapist viewing client materials
   const fetchTherapistViewingClientMaterials = useCallback(async (clientId: string) => {
     setIsLoading(true);
     setError("");
     logMessage(`THERAPIST VIEW: Fetching materials for client ID: ${clientId}`);
 
     try {
-      // Simulate API call with mock data
-      setTimeout(() => {
-        const clientIdNum = parseInt(clientId, 10);
-        const clientMaterials = MOCK_MATERIALS.filter(
-          assignment => assignment.client.id === clientIdNum
-        );
-        
-        logMessage(`THERAPIST VIEW: Found ${clientMaterials.length} materials for client ${clientId}`);
-        setMaterials(clientMaterials);
-        setIsLoading(false);
-      }, 500);
+      // Since the API is not available, fall back to mock data
+      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material/assigment/client/${clientId}`);
+      logMessage('Using mock data for development');
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const clientIdNum = parseInt(clientId, 10);
+      const clientMaterials = MOCK_MATERIALS.filter(
+        assignment => assignment.client.id === clientIdNum
+      );
+      
+      logMessage(`THERAPIST VIEW: Found ${clientMaterials.length} mock materials for client ${clientId}`);
+      setMaterials(clientMaterials);
+      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching client materials for therapist:", error);
+      logMessage(`ERROR fetching client materials for therapist: ${error instanceof Error ? error.message : String(error)}`);
       setError("An error occurred while loading client materials.");
       setIsLoading(false);
     }
@@ -323,26 +341,31 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     logMessage(`THERAPIST VIEW: Fetching all materials${therapistId ? ` for therapist ID: ${therapistId}` : ''}`);
 
     try {
-      // Simulate API call with mock data
-      setTimeout(() => {
-        let filteredMaterials = MOCK_MATERIALS;
-        
-        // Filter by therapist ID if provided
-        if (therapistId) {
-          const therapistIdNum = parseInt(therapistId, 10);
-          filteredMaterials = MOCK_MATERIALS.filter(
-            assignment => assignment.client.id === therapistIdNum
-          );
-          logMessage(`THERAPIST VIEW: Filtered to ${filteredMaterials.length} materials for therapist ID ${therapistId}`);
-        } else {
-          logMessage(`THERAPIST VIEW: Showing all ${filteredMaterials.length} materials (no filtering)`);
-        }
-        
-        setMaterials(filteredMaterials);
-        setIsLoading(false);
-      }, 500);
+      // Since the API is not available, fall back to mock data
+      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material/`);
+      logMessage('Using mock data for development');
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      let filteredMaterials = MOCK_MATERIALS;
+      
+      // Filter by therapist ID if provided
+      if (therapistId) {
+        const therapistIdNum = parseInt(therapistId, 10);
+        filteredMaterials = MOCK_MATERIALS.filter(
+          assignment => assignment.client.id === therapistIdNum
+        );
+        logMessage(`THERAPIST VIEW: Filtered to ${filteredMaterials.length} mock materials for therapist ID ${therapistId}`);
+      } else {
+        logMessage(`THERAPIST VIEW: Showing all ${filteredMaterials.length} mock materials`);
+      }
+      
+      setMaterials(filteredMaterials);
+      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching therapist materials:", error);
+      logMessage(`ERROR fetching therapist materials: ${error instanceof Error ? error.message : String(error)}`);
       setError("An error occurred while loading materials.");
       setIsLoading(false);
     }
@@ -496,34 +519,74 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
       logMessage(`Starting file upload process for client ID: ${clientId}`);
       logMessage(`File details - Name: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
       
-      // STEP 1: Upload file
-      logMessage("STEP 1: Uploading file");
+      // Since we're having issues with the real API, let's use the mock implementation for now
+      // but log the process as if we were using real endpoints
       
-      // Simulate file upload success with a mock file ID
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-      const fileId = `file_${Date.now()}`;
-      logMessage(`File uploaded successfully. File ID: ${fileId}`);
+      // STEP 1: Simulating file upload
+      logMessage("STEP 1: Simulating file upload (API endpoint not available)");
+      
+      // Log that we're using a mock process due to API unavailability
+      logMessage(`NOTE: Using mock process due to API endpoint unavailability. Would have called: POST https://api.akesomind.com/api/material/file`);
+      
+      // Simulate file upload with delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Create a mock file ID (in a real implementation, this would come from the API)
+      const fileId = `mock_file_${Date.now()}`;
+      logMessage(`Mock file upload simulated. File ID: ${fileId}`);
       
       // Update progress for visual feedback
       setUploadProgress(50);
       
-      // STEP 2: Create material
-      logMessage("STEP 2: Creating material");
+      // STEP 2: Simulating material creation since API endpoint is not available
+      logMessage("STEP 2: Simulating material creation (API endpoint not available)");
+      logMessage(`NOTE: Would have called: GET https://api.akesomind.com/api/material/ to retrieve material ID`);
       
-      // Simulate material creation with a mock ID
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-      const materialId = `material_${Date.now()}`;
-      logMessage(`Material created successfully. Material ID: ${materialId}`);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Create a mock material ID
+      const materialId = `mock_material_${Date.now()}`;
+      logMessage(`Mock material created. Material ID: ${materialId}`);
       
       // Update progress for visual feedback
       setUploadProgress(75);
       
-      // STEP 3: Assign material to client
-      logMessage(`STEP 3: Assigning material to client ID: ${clientId}`);
+      // STEP 3: Simulating assigning material to client
+      logMessage(`STEP 3: Simulating material assignment to client (API endpoint not available)`);
+      logMessage(`NOTE: Would have called: POST https://api.akesomind.com/api/material/assigment/client/${clientId}/material/${materialId}`);
       
-      // Simulate assignment success
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-      logMessage(`Material assigned successfully to client ID: ${clientId}`);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Create a mock assignment
+      const mockMaterial: Material = {
+        id: parseInt(materialId.replace('mock_material_', '')),
+        name: materialName,
+        isAssigned: true,
+        description: materialDescription || "",
+        files: [{ 
+          name: file.name, 
+          url: URL.createObjectURL(file) // Create a temporary URL for the file
+        }],
+        urls: []
+      };
+      
+      const mockAssignment: MaterialAssignment = {
+        id: Date.now(),
+        client: {
+          id: parseInt(clientId),
+          firstName: "Client",
+          lastName: `#${clientId}`
+        },
+        material: mockMaterial,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Add the mock assignment to the materials list
+      setMaterials(prevMaterials => [mockAssignment, ...prevMaterials]);
+      
+      logMessage(`Mock material assigned successfully to client ID: ${clientId}`);
       
       // Update progress for visual feedback
       setUploadProgress(100);
@@ -542,9 +605,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
       setTimeout(() => {
         setUploadSuccess(false);
       }, 3000);
-      
-      // Refresh material list
-      fetchTherapistViewingClientMaterials(clientId);
       
     } catch (error) {
       console.error("Error in upload process:", error);
@@ -649,7 +709,7 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
                   accept=".pdf,.doc,.docx,.txt,.jpeg,.jpg,.epub"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Allowed file types: {ALLOWED_FILE_EXTENSIONS.join(', ')}
+                  Allowed file types: {HUMAN_READABLE_FILE_TYPES}
                 </p>
               </div>
               
@@ -665,7 +725,12 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
                     }
                   }}
                 >
-                  {isLoading ? 'Uploading...' : 'Upload Material'}
+                  {isLoading ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      <span>Uploading...</span>
+                    </div>
+                  ) : 'Upload Material'}
                 </Button>
               </div>
               
@@ -801,15 +866,28 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
           })}
           
           {/* Debug information section - Only show in development environment */}
-          {process.env.NODE_ENV === 'development' && debugInfo.length > 0 && (
+          {process.env.NODE_ENV === 'development' && (
             <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-800 rounded text-xs">
               <details>
-                <summary className="cursor-pointer">Debug Information</summary>
-                <pre className="mt-2 whitespace-pre-wrap">
-                  {debugInfo.map((info, i) => (
-                    <div key={i}>{info}</div>
-                  ))}
-                </pre>
+                <summary className="cursor-pointer font-medium">Debug Information</summary>
+                <div className="mt-2 overflow-auto max-h-60">
+                  <div className="mb-2">
+                    <span className="font-medium">User Role:</span> {userRoles.isTherapist ? 'Therapist' : userRoles.isClient ? 'Client' : 'Unknown'}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-medium">Client ID:</span> {clientId || 'Not viewing a client'}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-medium">Logs:</span>
+                  </div>
+                  <pre className="whitespace-pre-wrap bg-gray-200 dark:bg-gray-700 p-2 rounded">
+                    {debugInfo.map((info, i) => (
+                      <div key={i} className={info.includes('ERROR') ? 'text-red-500' : info.includes('WARN') ? 'text-yellow-500' : ''}>
+                        {info}
+                      </div>
+                    ))}
+                  </pre>
+                </div>
               </details>
             </div>
           )}
