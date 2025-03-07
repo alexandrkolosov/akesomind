@@ -91,10 +91,10 @@ export default function UserProfiles() {
         </div>
       </div>
 
-      {/* Client Materials Section */}
-      <div className="mt-6">
+      {/* Client Materials Section - Removed as requested */}
+      {/* <div className="mt-6">
         <UserMaterialsCard clientId={userId} />
-      </div>
+      </div> */}
 
       {/* Add the DevTester for development */}
       {isDevelopment && <DevTester />}
