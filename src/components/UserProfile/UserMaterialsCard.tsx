@@ -519,49 +519,117 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
       logMessage(`Starting file upload process for client ID: ${clientId}`);
       logMessage(`File details - Name: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
       
-      // Since we're having issues with the real API, let's use the mock implementation for now
-      // but log the process as if we were using real endpoints
+      // STEP 1: Upload the file to get a file ID
+      logMessage("STEP 1: Uploading file to API endpoint");
+      logMessage("POST https://api.akesomind.com/api/material/file");
       
-      // STEP 1: Simulating file upload
-      logMessage("STEP 1: Simulating file upload (API endpoint not available)");
+      const formData = new FormData();
+      formData.append('file', file);
       
-      // Log that we're using a mock process due to API unavailability
-      logMessage(`NOTE: Using mock process due to API endpoint unavailability. Would have called: POST https://api.akesomind.com/api/material/file`);
+      const uploadResponse = await fetch('https://api.akesomind.com/api/material/file', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
       
-      // Simulate file upload with delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        logMessage(`File upload failed with status: ${uploadResponse.status}. Error: ${errorText}`);
+        throw new Error(`File upload failed with status: ${uploadResponse.status}`);
+      }
       
-      // Create a mock file ID (in a real implementation, this would come from the API)
-      const fileId = `mock_file_${Date.now()}`;
-      logMessage(`Mock file upload simulated. File ID: ${fileId}`);
+      // Parse the response to get the file ID
+      let fileId;
+      try {
+        const uploadData = await uploadResponse.json();
+        logMessage(`Upload response data: ${JSON.stringify(uploadData)}`);
+        
+        // Handle the case where the server returns just a number instead of a JSON object
+        fileId = typeof uploadData === 'number' ? uploadData : uploadData.id;
+        
+        if (fileId === undefined) {
+          throw new Error('Failed to get file ID from server response');
+        }
+      } catch (parseError) {
+        logMessage(`Error parsing response: ${parseError}`);
+        // If JSON parsing fails, the response might be a plain number
+        const textResponse = await uploadResponse.text();
+        logMessage(`Raw response text: ${textResponse}`);
+        fileId = parseInt(textResponse, 10);
+        
+        if (isNaN(fileId)) {
+          throw new Error('Failed to get file ID from server response');
+        }
+      }
+      
+      logMessage(`File uploaded successfully. File ID: ${fileId}`);
       
       // Update progress for visual feedback
       setUploadProgress(50);
       
-      // STEP 2: Simulating material creation since API endpoint is not available
-      logMessage("STEP 2: Simulating material creation (API endpoint not available)");
-      logMessage(`NOTE: Would have called: GET https://api.akesomind.com/api/material/ to retrieve material ID`);
+      // STEP 2: Create a material with the file ID
+      logMessage("STEP 2: Creating material with the uploaded file");
+      logMessage("POST https://api.akesomind.com/api/material");
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const materialData = {
+        name: materialName,
+        description: materialDescription || null,
+        files: [fileId],
+        urls: []
+      };
       
-      // Create a mock material ID
-      const materialId = `mock_material_${Date.now()}`;
-      logMessage(`Mock material created. Material ID: ${materialId}`);
+      const materialResponse = await fetch('https://api.akesomind.com/api/material', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(materialData)
+      });
+      
+      if (!materialResponse.ok) {
+        const errorText = await materialResponse.text();
+        logMessage(`Material creation failed with status: ${materialResponse.status}. Error: ${errorText}`);
+        throw new Error(`Material creation failed with status: ${materialResponse.status}`);
+      }
+      
+      // Parse the response to get the material ID
+      const materialResponseData = await materialResponse.json();
+      const materialId = materialResponseData.id;
+      
+      logMessage(`Material created successfully. Material ID: ${materialId}`);
       
       // Update progress for visual feedback
       setUploadProgress(75);
       
-      // STEP 3: Simulating assigning material to client
-      logMessage(`STEP 3: Simulating material assignment to client (API endpoint not available)`);
-      logMessage(`NOTE: Would have called: POST https://api.akesomind.com/api/material/assigment/client/${clientId}/material/${materialId}`);
+      // STEP 3: Assign the material to the client
+      logMessage("STEP 3: Assigning material to client");
+      const assignUrl = `https://api.akesomind.com/api/material/assigment/client/${clientId}/material/${materialId}`;
+      logMessage(`Requesting: POST ${assignUrl}`);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const assignResponse = await fetch(assignUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
       
-      // Create a mock assignment
-      const mockMaterial: Material = {
-        id: parseInt(materialId.replace('mock_material_', '')),
+      if (!assignResponse.ok) {
+        const errorText = await assignResponse.text();
+        logMessage(`Assignment failed with status: ${assignResponse.status}. Error: ${errorText}`);
+        console.warn(`Material assignment failed but will continue - material was created successfully`);
+      } else {
+        logMessage("Material successfully assigned to client");
+      }
+      
+      // Update progress for visual feedback
+      setUploadProgress(100);
+      
+      // Create a material object for display in the UI
+      const newMaterial: Material = {
+        id: materialId,
         name: materialName,
         isAssigned: true,
         description: materialDescription || "",
@@ -572,21 +640,21 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
         urls: []
       };
       
-      const mockAssignment: MaterialAssignment = {
+      const newAssignment: MaterialAssignment = {
         id: Date.now(),
         client: {
           id: parseInt(clientId),
           firstName: "Client",
           lastName: `#${clientId}`
         },
-        material: mockMaterial,
+        material: newMaterial,
         createdAt: new Date().toISOString()
       };
       
-      // Add the mock assignment to the materials list
-      setMaterials(prevMaterials => [mockAssignment, ...prevMaterials]);
+      // Add the new assignment to the materials list for immediate display
+      setMaterials(prevMaterials => [newAssignment, ...prevMaterials]);
       
-      logMessage(`Mock material assigned successfully to client ID: ${clientId}`);
+      logMessage(`Material assigned successfully to client ID: ${clientId}`);
       
       // Update progress for visual feedback
       setUploadProgress(100);

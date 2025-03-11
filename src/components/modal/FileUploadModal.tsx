@@ -191,17 +191,53 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose, clie
       console.log(`File uploaded successfully. File ID: ${fileId}`);
       
       // Update progress for visual feedback
+      setUploadProgress(50);
+      
+      // STEP 2: Create a material with the file ID
+      console.log("STEP 2: Creating material with the uploaded file");
+      console.log("POST https://api.akesomind.com/api/material");
+      
+      const materialData = {
+        name: materialName,
+        description: materialDescription || null,
+        files: [fileId],
+        urls: []
+      };
+      
+      const materialResponse = await fetch('https://api.akesomind.com/api/material', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(materialData)
+      });
+      
+      if (!materialResponse.ok) {
+        const errorText = await materialResponse.text();
+        console.error(`Material creation failed with status: ${materialResponse.status}. Error: ${errorText}`);
+        throw new Error(`Material creation failed with status: ${materialResponse.status}`);
+      }
+      
+      // Parse the response to get the material ID
+      const materialResponseData = await materialResponse.json();
+      const materialId = materialResponseData.id;
+      
+      console.log(`Material created successfully. Material ID: ${materialId}`);
+      
+      // Update progress for visual feedback
       setUploadProgress(75);
       
-      // STEP 2: Now assign the material to the client
+      // STEP 3: Now assign the material to the client
       try {
-        console.log("STEP 2: Assigning material to client");
-        const assignUrl = `https://api.akesomind.com/api/material/assigment`;
-        console.log(`Requesting: GET ${assignUrl}`);
+        console.log("STEP 3: Assigning material to client");
+        const assignUrl = `https://api.akesomind.com/api/material/assigment/client/${client.id}/material/${materialId}`;
+        console.log(`Requesting: POST ${assignUrl}`);
         
         // Try to assign the material to the client
         const assignResponse = await fetch(assignUrl, {
-          method: 'GET',
+          method: 'POST',
           credentials: 'include',
           headers: {
             'Accept': 'application/json'
