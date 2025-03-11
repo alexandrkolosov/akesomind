@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import PageBreadCrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import UserInfoCard from "../components/UserProfile/UserInfoCard";
-import UserMaterialsCard from "../components/UserProfile/UserMaterialsCard";
+// Removed UserMaterialsCard import
 // Import the development tools only if needed
 import { ProfileTester } from "../components/Profile/ProfileTester";
 import DevTester from "../components/Profile/DevTester";
@@ -89,11 +89,6 @@ export default function UserProfiles() {
         <div className="space-y-6">
           <UserInfoCard clientId={userId} />
         </div>
-      </div>
-
-      {/* Client Materials Section */}
-      <div className="mt-6">
-        <UserMaterialsCard clientId={userId} />
       </div>
 
       {/* Add the DevTester for development */}

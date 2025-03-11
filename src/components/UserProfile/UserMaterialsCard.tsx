@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Button from "../ui/button/Button";
 
 interface MaterialFile {
@@ -220,61 +220,18 @@ const isUserTherapist = (data: UserData | null | undefined): boolean => {
   return role === 'Therapist';
 };
 
-// Allowed file types
-const ALLOWED_FILE_TYPES = [
-  'application/pdf', 
-  'application/msword', 
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'image/jpeg',
-  'image/jpg',
-  'application/epub+zip'
-];
-
-// File extensions for validation
-const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.jpeg', '.jpg', '.epub'];
-
-// Human-readable file types for display
-const HUMAN_READABLE_FILE_TYPES = 'PDF, Word documents (DOC/DOCX), text files (TXT), images (JPEG/JPG), or E-books (EPUB)';
-
-// Add a style tag for the highlight animation
-const uploadFormHighlightStyle = `
-  @keyframes highlightBorder {
-    0% { border-color: #4f46e5; box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
-    50% { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.4); }
-    100% { border-color: #4f46e5; box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
-  }
-  
-  .highlight-animation {
-    animation: highlightBorder 1.5s ease-in-out;
-    border-color: #4f46e5 !important;
-  }
-`;
-
 export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) {
   const [materials, setMaterials] = useState<MaterialAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [uploadError, setUploadError] = useState("");
-  const [materialName, setMaterialName] = useState("");
-  const [materialDescription, setMaterialDescription] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Debugging function - using useCallback to prevent recreation on each render
-  const logMessage = useCallback((message: string) => {
+  
+  const logMessage = (message: string) => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log(message);
-      // Add timestamp to the log message
-      const timestamp = new Date().toISOString();
-      const logWithTimestamp = `[${timestamp}] ${message}`;
-      // Add the message to debug info state for display
-      setDebugInfo(prev => [...prev, logWithTimestamp]);
+      console.log(`UserMaterialsCard: ${message}`);
     }
-  }, []);
+  };
 
   // Memoize fetch functions to prevent recreation on each render
   const fetchClientMaterials = useCallback(async (clientId: string) => {
@@ -403,9 +360,9 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     loadUserData();
   }, [logMessage]); // Only run once on mount, include logMessage
 
-  // Memoize user role calculations to prevent recalculation on every render
+  // Keep the memoized userRoles
   const userRoles = useMemo(() => {
-    if (!userData) return { isTherapist: false, isClient: false };
+    if (!userData) return { isTherapist: false, isClient: false, isTherapistViewingClient: false };
     return {
       isTherapist: isUserTherapist(userData) || 
                   (userData?.role?.toLowerCase() === 'therapist') || 
@@ -415,9 +372,10 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
                (userData?.role?.toLowerCase() === 'client') ||
                (userData?.type?.toLowerCase() === 'client') ||
                (userData?.userType?.toLowerCase() === 'client') ||
-               (userData?.isClient === true)
+               (userData?.isClient === true),
+      isTherapistViewingClient: clientId !== undefined && isUserTherapist(userData)
     };
-  }, [userData]);
+  }, [userData, clientId]);
 
   // Second useEffect - Handle materials loading based on user role and clientId
   useEffect(() => {
@@ -485,209 +443,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     logMessage(`File download initiated for ${fileName}`);
   };
 
-  // Function to handle file upload for a client
-  const handleFileUpload = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    if (!clientId) {
-      setUploadError("Client ID is required for uploads");
-      logMessage("ERROR: File upload attempted without client ID");
-      return;
-    }
-    
-    const file = fileInputRef.current?.files?.[0];
-    if (!file) {
-      setUploadError("Please select a file to upload");
-      logMessage("ERROR: No file selected for upload");
-      return;
-    }
-    
-    // Check file type
-    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    if (!ALLOWED_FILE_TYPES.includes(file.type) && !ALLOWED_FILE_EXTENSIONS.includes(fileExtension)) {
-      setUploadError(`Unsupported file type. Please upload a PDF, DOC, DOCX, TXT, JPEG, JPG or EPUB file.`);
-      logMessage(`ERROR: Invalid file type: ${file.type}, extension: ${fileExtension}`);
-      return;
-    }
-    
-    if (!materialName.trim()) {
-      setUploadError("Please provide a name for the material");
-      logMessage("ERROR: No material name provided");
-      return;
-    }
-    
-    setIsLoading(true);
-    setUploadError("");
-    
-    try {
-      logMessage(`Starting file upload process for client ID: ${clientId}`);
-      logMessage(`File details - Name: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
-      
-      // STEP 1: Upload the file to get a file ID
-      logMessage("STEP 1: Uploading file to API endpoint");
-      logMessage("POST https://api.akesomind.com/api/material/file");
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const uploadResponse = await fetch('https://api.akesomind.com/api/material/file', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-      
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        logMessage(`File upload failed with status: ${uploadResponse.status}. Error: ${errorText}`);
-        throw new Error(`File upload failed with status: ${uploadResponse.status}`);
-      }
-      
-      // Parse the response to get the file ID
-      let fileId;
-      try {
-        const uploadData = await uploadResponse.json();
-        logMessage(`Upload response data: ${JSON.stringify(uploadData)}`);
-        
-        // Handle the case where the server returns just a number instead of a JSON object
-        fileId = typeof uploadData === 'number' ? uploadData : uploadData.id;
-        
-        if (fileId === undefined) {
-          throw new Error('Failed to get file ID from server response');
-        }
-      } catch (parseError) {
-        logMessage(`Error parsing response: ${parseError}`);
-        // If JSON parsing fails, the response might be a plain number
-        const textResponse = await uploadResponse.text();
-        logMessage(`Raw response text: ${textResponse}`);
-        fileId = parseInt(textResponse, 10);
-        
-        if (isNaN(fileId)) {
-          throw new Error('Failed to get file ID from server response');
-        }
-      }
-      
-      logMessage(`File uploaded successfully. File ID: ${fileId}`);
-      
-      // Update progress for visual feedback
-      setUploadProgress(50);
-      
-      // STEP 2: Create a material with the file ID
-      logMessage("STEP 2: Creating material with the uploaded file");
-      logMessage("POST https://api.akesomind.com/api/material");
-      
-      const materialData = {
-        name: materialName,
-        description: materialDescription || null,
-        files: [fileId],
-        urls: []
-      };
-      
-      const materialResponse = await fetch('https://api.akesomind.com/api/material', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(materialData)
-      });
-      
-      if (!materialResponse.ok) {
-        const errorText = await materialResponse.text();
-        logMessage(`Material creation failed with status: ${materialResponse.status}. Error: ${errorText}`);
-        throw new Error(`Material creation failed with status: ${materialResponse.status}`);
-      }
-      
-      // Parse the response to get the material ID
-      const materialResponseData = await materialResponse.json();
-      const materialId = materialResponseData.id;
-      
-      logMessage(`Material created successfully. Material ID: ${materialId}`);
-      
-      // Update progress for visual feedback
-      setUploadProgress(75);
-      
-      // STEP 3: Assign the material to the client
-      logMessage("STEP 3: Assigning material to client");
-      const assignUrl = `https://api.akesomind.com/api/material/assigment/client/${clientId}/material/${materialId}`;
-      logMessage(`Requesting: POST ${assignUrl}`);
-      
-      const assignResponse = await fetch(assignUrl, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!assignResponse.ok) {
-        const errorText = await assignResponse.text();
-        logMessage(`Assignment failed with status: ${assignResponse.status}. Error: ${errorText}`);
-        console.warn(`Material assignment failed but will continue - material was created successfully`);
-      } else {
-        logMessage("Material successfully assigned to client");
-      }
-      
-      // Update progress for visual feedback
-      setUploadProgress(100);
-      
-      // Create a material object for display in the UI
-      const newMaterial: Material = {
-        id: materialId,
-        name: materialName,
-        isAssigned: true,
-        description: materialDescription || "",
-        files: [{ 
-          name: file.name, 
-          url: URL.createObjectURL(file), // Create a temporary URL for the file
-          id: fileId // Add the file ID so the download button works
-        }],
-        urls: []
-      };
-      
-      const newAssignment: MaterialAssignment = {
-        id: Date.now(),
-        client: {
-          id: parseInt(clientId),
-          firstName: "Client",
-          lastName: `#${clientId}`
-        },
-        material: newMaterial,
-        createdAt: new Date().toISOString()
-      };
-      
-      // Add the new assignment to the materials list for immediate display
-      setMaterials(prevMaterials => [newAssignment, ...prevMaterials]);
-      
-      logMessage(`Material assigned successfully to client ID: ${clientId}`);
-      
-      // Update progress for visual feedback
-      setUploadProgress(100);
-      
-      // Reset form
-      setMaterialName("");
-      setMaterialDescription("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      
-      // Show success message
-      setUploadSuccess(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setUploadSuccess(false);
-      }, 3000);
-      
-    } catch (error) {
-      console.error("Error in upload process:", error);
-      logMessage(`ERROR in upload process: ${error instanceof Error ? error.message : String(error)}`);
-      setUploadError(`An error occurred: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const openUrl = (url: string) => {
     console.log(`Opening URL: ${url}`);
     window.open(url, '_blank');
@@ -695,8 +450,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
-      <style dangerouslySetInnerHTML={{ __html: uploadFormHighlightStyle }} />
-      
       <div className="flex justify-between items-center mb-5">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
           {userRoles.isTherapist 
@@ -713,11 +466,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
               const uploadForm = document.getElementById('upload-materials-form');
               if (uploadForm) {
                 uploadForm.scrollIntoView({ behavior: 'smooth' });
-                // Add highlight effect to make it more noticeable
-                uploadForm.classList.add('highlight-animation');
-                setTimeout(() => {
-                  uploadForm.classList.remove('highlight-animation');
-                }, 2000);
               } else {
                 logMessage("Upload form element not found in DOM");
               }
@@ -730,112 +478,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
           </Button>
         )}
       </div>
-
-      {/* File Upload Form for Therapists when viewing a client profile */}
-      {clientId && (userRoles.isTherapist) && (
-        <div id="upload-materials-form" className="mb-6 p-4 border border-gray-200 rounded-lg dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
-          <h4 className="text-md font-medium mb-4 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-            Upload Material for Client
-          </h4>
-          
-          <form onSubmit={handleFileUpload}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="materialName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Material Name *
-                </label>
-                <input
-                  type="text"
-                  id="materialName"
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-primary focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                  value={materialName}
-                  onChange={(e) => setMaterialName(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="materialDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Description (Optional)
-                </label>
-                <textarea
-                  id="materialDescription"
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-primary focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                  value={materialDescription}
-                  onChange={(e) => setMaterialDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="fileUpload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Select File *
-                </label>
-                <input
-                  type="file"
-                  id="fileUpload"
-                  ref={fileInputRef}
-                  className="w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-primary-hover"
-                  accept=".pdf,.doc,.docx,.txt,.jpeg,.jpg,.epub"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Allowed file types: {HUMAN_READABLE_FILE_TYPES}
-                </p>
-              </div>
-              
-              <div className="flex justify-end">
-                <Button
-                  className="bg-primary hover:bg-primary-hover text-white"
-                  disabled={isLoading}
-                  onClick={() => {
-                    if (fileInputRef.current && fileInputRef.current.form) {
-                      fileInputRef.current.form.dispatchEvent(
-                        new Event('submit', { cancelable: true, bubbles: true })
-                      );
-                    }
-                  }}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      <span>Uploading...</span>
-                    </div>
-                  ) : 'Upload Material'}
-                </Button>
-              </div>
-              
-              {isLoading && (
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div 
-                      className="bg-primary h-2.5 rounded-full transition-all duration-300" 
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Uploading... {uploadProgress}%
-                  </p>
-                </div>
-              )}
-              
-              {uploadError && (
-                <div className="mt-2 text-sm text-red-500">
-                  {uploadError}
-                </div>
-              )}
-              
-              {uploadSuccess && (
-                <div className="mt-2 text-sm text-green-500">
-                  Material uploaded and assigned successfully!
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
-      )}
 
       {isLoading && (
         <div className="flex justify-center items-center py-10">
