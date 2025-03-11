@@ -53,6 +53,10 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   const [isReady, setIsReady] = useState(false);
   const [loggedInUserData, setLoggedInUserData] = useState<any>(null);
   const [isCached, setIsCached] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'materials'>('profile');
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
+  const [materialsError, setMaterialsError] = useState<string | null>(null);
 
   // Memoize data loading functions
   const getCachedData = useCallback(() => {
@@ -191,6 +195,16 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       } catch (e) {
         console.error('Error getting role from localStorage:', e);
       }
+    }
+    
+    // Additional client detection for backward compatibility
+    if (formattedData.isClient === true || 
+        (formattedData.type && formattedData.type.toLowerCase() === 'client') || 
+        (formattedData.role && formattedData.role.toLowerCase() === 'client')) {
+      // Ensure both type and role indicate client
+      formattedData.type = 'client';
+      formattedData.role = 'client';
+      formattedData.isClient = true;
     }
     
     // Normalize zoneId
@@ -554,6 +568,215 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     console.log(`UserInfoCard: User clicked on ${element}`);
   };
 
+  // Helper function to check if user is a client
+  const isUserClient = (data: any): boolean => {
+    if (!data) return false;
+    
+    return (
+      (data.type && data.type.toLowerCase() === 'client') ||
+      (data.role && data.role.toLowerCase() === 'client') ||
+      (data.userType && data.userType.toLowerCase() === 'client') ||
+      data.isClient === true
+    );
+  };
+
+  // Function to fetch materials for the client
+  const fetchClientMaterials = useCallback(async () => {
+    if (!clientId && (!profileData?.id || !isUserClient(profileData))) {
+      debugLog('fetchClientMaterials: No client ID available or user is not a client');
+      return;
+    }
+
+    const userId = clientId || profileData?.id?.toString();
+    if (!userId) {
+      debugLog('fetchClientMaterials: Unable to determine user ID');
+      return;
+    }
+
+    setIsLoadingMaterials(true);
+    setMaterialsError(null);
+
+    try {
+      debugLog(`fetchClientMaterials: Fetching materials for client ID: ${userId}`);
+      
+      // Try the client-specific endpoint first, then fall back to the general materials endpoint if needed
+      const clientSpecificUrl = `https://api.akesomind.com/api/material/client/${userId}`;
+      debugLog(`Attempting to fetch from client-specific endpoint: ${clientSpecificUrl}`);
+      
+      let response;
+      try {
+        response = await fetch(clientSpecificUrl, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!response.ok && response.status === 404) {
+          // If client endpoint returns 404, try the general endpoint
+          debugLog('Client-specific endpoint returned 404, falling back to general materials endpoint');
+          response = await fetch('https://api.akesomind.com/api/material', {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+        }
+      } catch (error) {
+        // If client endpoint fails, try the general endpoint
+        debugLog(`Error with client-specific endpoint: ${error}`);
+        response = await fetch('https://api.akesomind.com/api/material', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+      }
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          debugLog('fetchClientMaterials: API endpoint not found (404). Showing empty materials list.');
+          setMaterials([]);
+          return;
+        }
+        throw new Error(`Failed to fetch materials: ${response.status}`);
+      }
+
+      try {
+        const responseData = await response.json();
+        
+        debugLog('fetchClientMaterials: Raw API response:', {
+          type: typeof responseData,
+          isArray: Array.isArray(responseData),
+          keys: responseData && typeof responseData === 'object' ? Object.keys(responseData) : [],
+          preview: JSON.stringify(responseData).substring(0, 200) + '...'
+        });
+        
+        let materialsArray = [];
+        
+        // Handle the response structure where materials are in the 'list' property
+        if (responseData && responseData.list && Array.isArray(responseData.list)) {
+          materialsArray = responseData.list;
+          debugLog('fetchClientMaterials: Found materials in list property', {
+            count: materialsArray.length
+          });
+        } else if (Array.isArray(responseData)) {
+          materialsArray = responseData;
+        } else if (responseData && typeof responseData === 'object') {
+          // If response is an object, check other possible properties
+          if (responseData.materials && Array.isArray(responseData.materials)) {
+            materialsArray = responseData.materials;
+          } else if (responseData.content && Array.isArray(responseData.content)) {
+            materialsArray = responseData.content;
+          }
+        }
+        
+        debugLog(`fetchClientMaterials: Materials fetched successfully`, { 
+          count: materialsArray.length,
+          isArray: Array.isArray(materialsArray),
+          firstItem: materialsArray.length > 0 ? materialsArray[0] : null
+        });
+        
+        setMaterials(materialsArray);
+      } catch (parseError) {
+        debugLog(`fetchClientMaterials: Error parsing JSON response: ${parseError}`);
+        const textResponse = await response.text();
+        debugLog(`fetchClientMaterials: Raw response: ${textResponse}`);
+        setMaterials([]);
+      }
+    } catch (error) {
+      console.error('Error fetching client materials:', error);
+      setMaterialsError('Failed to load materials. Please try again later.');
+      setMaterials([]);
+    } finally {
+      setIsLoadingMaterials(false);
+    }
+  }, [clientId, profileData, debugLog, isUserClient]);
+
+  // Fetch materials when tab changes to 'materials'
+  useEffect(() => {
+    if (activeTab === 'materials' && isUserClient(profileData)) {
+      // Only fetch if we don't already have materials
+      if (!isLoadingMaterials && (!materials || materials.length === 0)) {
+        fetchClientMaterials();
+      }
+    }
+  }, [activeTab, profileData, fetchClientMaterials, isLoadingMaterials, materials]);
+
+  // Function to download a material file
+  const handleDownloadFile = async (fileId: number | string, fileName: string) => {
+    try {
+      debugLog(`Downloading file with ID ${fileId}`);
+      
+      // Ensure fileId is valid
+      if (!fileId) {
+        alert('Invalid file ID. Cannot download file.');
+        return;
+      }
+      
+      // Use the correct endpoint for downloading files
+      const response = await fetch(`https://api.akesomind.com/api/material/file/${fileId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        // For 404, show a more helpful message
+        if (response.status === 404) {
+          console.error(`File not found: File ID ${fileId} returned 404`);
+          alert(`The file could not be found. It may have been deleted or is no longer available.`);
+          return;
+        }
+        
+        // Try to get more details about the error
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch (e) {
+          errorText = 'Could not get error details';
+        }
+        
+        throw new Error(`Failed to download file: ${response.status} - ${errorText}`);
+      }
+
+      // Create a blob from the response
+      const blob = await response.blob();
+      
+      // Check if the blob is empty or too small (likely an error)
+      if (blob.size < 10) { // Arbitrary small size that's likely an error
+        const text = await blob.text();
+        debugLog(`Warning: Downloaded file is very small (${blob.size} bytes): ${text}`);
+        
+        if (text.includes('error') || text.includes('Error') || blob.size === 0) {
+          alert('Error downloading file. The server returned an invalid response.');
+          return;
+        }
+      }
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || `file-${fileId}`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+      
+      debugLog('File downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Debug output before rendering decision
   console.log('UserInfoCard: Before render condition check:', {
     isReady,
@@ -888,7 +1111,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <span className="text-xl font-semibold text-gray-500 dark:text-gray-400">
+                          <span className="text-2xl font-semibold text-gray-500 dark:text-gray-400">
                             {profileData.firstName?.charAt(0) || ''}
                             {profileData.lastName?.charAt(0) || ''}
                           </span>
@@ -936,73 +1159,300 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         </div>
       </Modal>
 
-      {/* User Profile Details */}
+      {/* User Profile Details with Tabs */}
       <div className="mt-8">
-        <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">
-          User Profile
-        </h4>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
-          <div>
-            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-              ID
-            </p>
-            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {profileData.id}
-            </p>
+        {/* Debug information - can be removed in production */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">
+            <p>Debug Info:</p>
+            <p>Client ID param: {clientId || 'Not provided'}</p>
+            <p>User ID: {profileData.id || 'Not set'}</p>
+            <p>User Type: {profileData.type || 'Not set'}</p>
+            <p>User Role: {profileData.role || 'Not set'}</p>
+            <p>User Type from localStorage: {JSON.parse(localStorage.getItem('userData') || '{}').type || 'Not set'}</p>
+            <p>Is Client: {isUserClient(profileData) ? 'Yes' : 'No'}</p>
           </div>
-          <div>
-            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-              Email
-            </p>
-            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {profileData.email}
-            </p>
-          </div>
-          <div>
-            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-              First Name
-            </p>
-            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {profileData.firstName}
-            </p>
-          </div>
-          <div>
-            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-              Last Name
-            </p>
-            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {profileData.lastName}
-            </p>
-          </div>
-          {profileData.phone && (
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Phone
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.phone}
-              </p>
-            </div>
+        )}
+        
+        {/* Tabs Navigation - only show Materials tab for clients */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+          <button
+            className={`py-2 px-4 text-sm font-medium mr-4 ${
+              activeTab === 'profile'
+                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+            onClick={() => setActiveTab('profile')}
+          >
+            Profile
+          </button>
+          
+          {/* Only show Materials tab for clients */}
+          {((profileData.type && profileData.type.toLowerCase() === 'client') || 
+            (profileData.role && profileData.role.toLowerCase() === 'client') ||
+            (profileData.userType && profileData.userType.toLowerCase() === 'client') ||
+            profileData.isClient === true) && (
+            <button
+              className={`py-2 px-4 text-sm font-medium ${
+                activeTab === 'materials'
+                  ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+              onClick={() => setActiveTab('materials')}
+            >
+              Materials
+            </button>
           )}
-          {profileData.birthday && (
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Birthday
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {profileData.birthday}
-              </p>
-            </div>
-          )}
-          <div>
-            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-              Time Zone
-            </p>
-            <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {profileData.zoneId?.id || profileData.zoneId || "UTC"}
-            </p>
-          </div>
         </div>
+
+        {/* Profile Tab Content */}
+        {activeTab === 'profile' && (
+          <>
+            <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">
+              User Profile
+            </h4>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  ID
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.id}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Email
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.email}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  First Name
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.firstName}
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Last Name
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.lastName}
+                </p>
+              </div>
+              {profileData.phone && (
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                    Phone
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {profileData.phone}
+                  </p>
+                </div>
+              )}
+              {profileData.birthday && (
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                    Birthday
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {profileData.birthday}
+                  </p>
+                </div>
+              )}
+              <div>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                  Time Zone
+                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {profileData.zoneId?.id || profileData.zoneId || "UTC"}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Materials Tab Content */}
+        {activeTab === 'materials' && isUserClient(profileData) && (
+          <>
+            <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">
+              Materials
+            </h4>
+            
+            {isLoadingMaterials ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
+              </div>
+            ) : materialsError ? (
+              <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                <p className="text-red-600 dark:text-red-400 text-sm">{materialsError}</p>
+                <button 
+                  className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  onClick={() => fetchClientMaterials()}
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : !Array.isArray(materials) ? (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                <p className="text-yellow-600 dark:text-yellow-400 text-sm">
+                  Unexpected data format received. Please refresh the page and try again.
+                </p>
+                <button 
+                  className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  onClick={() => {
+                    setMaterials([]);
+                    fetchClientMaterials();
+                  }}
+                >
+                  Reload Materials
+                </button>
+                <p className="mt-3 text-xs text-gray-500">
+                  Debug info: Materials data type: {typeof materials}, 
+                  Value: {JSON.stringify(materials).substring(0, 100)}{JSON.stringify(materials).length > 100 ? '...' : ''}
+                </p>
+              </div>
+            ) : materials.length === 0 ? (
+              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg text-center">
+                <p className="text-gray-600 dark:text-gray-400">
+                  No materials have been assigned to you yet.
+                </p>
+                <button 
+                  className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  onClick={() => fetchClientMaterials()}
+                >
+                  Refresh Materials
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {materials.map((material, index) => {
+                  if (!material) return null;
+                  
+                  // Handle case where material might be an assignment object with nested material
+                  const materialData = material.material ? material.material : material;
+                  
+                  // Skip if we don't have valid material data
+                  if (!materialData || !materialData.name) {
+                    console.log('Skipping invalid material item:', material);
+                    return null;
+                  }
+                  
+                  return (
+                    <div 
+                      key={materialData.id || `material-${index}`} 
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    >
+                      <h5 className="font-medium text-gray-800 dark:text-white/90 mb-1">
+                        {materialData.name || `Material ${index + 1}`}
+                      </h5>
+                      
+                      {materialData.description && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                          {materialData.description}
+                        </p>
+                      )}
+                      
+                      {materialData.files && Array.isArray(materialData.files) && materialData.files.length > 0 ? (
+                        <div className="mt-3">
+                          <p className="text-xs leading-normal text-gray-500 dark:text-gray-400 mb-2">
+                            Files:
+                          </p>
+                          <div className="space-y-2">
+                            {materialData.files.map((file: any, fileIndex: number) => {
+                              // Handle different file data structures
+                              const fileId = typeof file === 'object' ? file.id : (typeof file === 'number' ? file : null);
+                              const fileName = typeof file === 'object' ? (file.name || `File ${fileIndex + 1}`) : `File ${fileIndex + 1}`;
+                              
+                              if (!fileId) return null;
+                              
+                              return (
+                                <div 
+                                  key={`file-${fileId}-${fileIndex}`} 
+                                  className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-2 rounded"
+                                >
+                                  <div className="flex items-center">
+                                    <svg 
+                                      className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" 
+                                      fill="currentColor" 
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                      {fileName}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleDownloadFile(fileId, fileName)}
+                                    variant="outline"
+                                    className="flex items-center"
+                                  >
+                                    <svg 
+                                      className="w-4 h-4 mr-1" 
+                                      fill="currentColor" 
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                    Download
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 italic mt-2">
+                          No files attached to this material
+                        </p>
+                      )}
+                      
+                      {materialData.urls && Array.isArray(materialData.urls) && materialData.urls.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs leading-normal text-gray-500 dark:text-gray-400 mb-2">
+                            Links:
+                          </p>
+                          <div className="space-y-2">
+                            {materialData.urls.map((url: string, urlIndex: number) => (
+                              <div 
+                                key={`url-${urlIndex}`} 
+                                className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-2 rounded"
+                              >
+                                <div className="flex items-center">
+                                  <svg 
+                                    className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" 
+                                    fill="currentColor" 
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                                  </svg>
+                                  <a 
+                                    href={url} 
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                  >
+                                    {url}
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
