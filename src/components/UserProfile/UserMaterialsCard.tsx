@@ -4,6 +4,7 @@ import Button from "../ui/button/Button";
 interface MaterialFile {
   url: string;
   name: string;
+  id?: number;
 }
 
 interface Material {
@@ -461,24 +462,27 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     }
   }, [clientId, userData, userRoles, fetchClientMaterials, fetchTherapistViewingClientMaterials, fetchAllMaterials, logMessage]);
 
-  // Function to simulate file downloads
-  const handleDownload = (file: MaterialFile) => {
-    if (!file.url) {
-      logMessage(`Cannot download file - missing URL`);
+  // Function to handle file downloads
+  const handleDownload = (fileId: number, fileName: string) => {
+    if (!fileId) {
+      logMessage(`Cannot download file - missing file ID`);
       return;
     }
     
-    logMessage(`Simulating download for file: ${file.name}`);
+    // Create a direct download link to the file
+    const downloadUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
+    logMessage(`Downloading file: ${fileName} from ${downloadUrl}`);
     
-    // In a real app, this would handle actual file download
-    // For now, just open the URL in a new tab
+    // Create and click a download link
     const a = document.createElement('a');
-    a.href = file.url;
-    a.download = file.name;
-    a.target = '_blank';
+    a.href = downloadUrl;
+    a.download = fileName || `file-${fileId}`;
+    a.target = '_self'; // Use _self to ensure it works well with credentials
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     
-    logMessage(`Simulated download completed for ${file.name}`);
+    logMessage(`File download initiated for ${fileName}`);
   };
 
   // Function to handle file upload for a client
@@ -635,7 +639,8 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
         description: materialDescription || "",
         files: [{ 
           name: file.name, 
-          url: URL.createObjectURL(file) // Create a temporary URL for the file
+          url: URL.createObjectURL(file), // Create a temporary URL for the file
+          id: fileId // Add the file ID so the download button works
         }],
         urls: []
       };
@@ -896,13 +901,29 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Files:</p>
                       <div className="flex flex-wrap gap-2">
                         {assignment.material.files.map((file, index) => (
-                          <Button
-                            key={index}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-xs"
-                            onClick={() => handleDownload(file)}
-                          >
-                            {file.name}
-                          </Button>
+                          file.id !== undefined && (
+                            <Button
+                              key={index}
+                              className="flex items-center bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-blue-400 text-xs"
+                              onClick={() => handleDownload(file.id as number, file.name)}
+                            >
+                              <svg 
+                                className="w-4 h-4 mr-1" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24" 
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round" 
+                                  strokeWidth="2" 
+                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                />
+                              </svg>
+                              Download {file.name}
+                            </Button>
+                          )
                         ))}
                       </div>
                     </div>

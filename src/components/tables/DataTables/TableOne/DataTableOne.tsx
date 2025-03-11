@@ -76,6 +76,7 @@ interface Recording {
 interface MaterialFile {
   url: string;
   name: string;
+  id?: number;
 }
 
 // Interface for material
@@ -671,49 +672,25 @@ export default function DataTableOne() {
   };
 
   // Direct file download function with proper authentication
-  const downloadMaterialFile = async (fileId: number, fileName: string): Promise<void> => {
+  const downloadMaterialFile = (fileId: number, fileName: string): void => {
     console.log(`Directly downloading file ID: ${fileId}, filename: ${fileName}`);
     const fileUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
     console.log(`GET ${fileUrl}`);
     
     try {
-      console.log(`Making request to: ${fileUrl}`);
-      
-      const response = await fetch(fileUrl, { 
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache, no-store',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      // Log response headers for debugging
-      console.log('Response headers:');
-      response.headers.forEach((value, key) => {
-        console.log(`${key}: ${value}`);
-      });
-      
-      // Get the blob from the response
-      const blob = await response.blob();
-      
-      // Create a download link and trigger it
-      const blobUrl = window.URL.createObjectURL(blob);
+      // Create and click a download link
       const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = fileName;
+      a.href = fileUrl;
+      a.download = fileName || `file-${fileId}`;
+      a.target = '_self'; // Use _self to ensure it works well with credentials
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
       
-      console.log(`Download completed for ${fileName}`);
+      console.log(`File download initiated for ${fileName}`);
     } catch (error) {
-      console.error('Error downloading file:', error);
-      alert(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error initiating download:', error);
+      alert('An error occurred while trying to download the file.');
     }
   };
 
@@ -2182,13 +2159,14 @@ export default function DataTableOne() {
                                     </div>
                                     <div className="flex items-center">
                                       <button
-                                        onClick={() => downloadMaterialFile(material.id, file.name)}
-                                        className="text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 mr-2"
+                                        onClick={() => downloadMaterialFile(file.id || fileIndex, file.name)}
+                                        className="flex items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-blue-400"
                                         title="Download file"
                                       >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                                         </svg>
+                                        Download
                                       </button>
                                     </div>
                                   </div>

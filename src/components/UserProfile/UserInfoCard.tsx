@@ -707,7 +707,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   }, [activeTab, profileData, fetchClientMaterials, isLoadingMaterials, materials]);
 
   // Function to download a material file
-  const handleDownloadFile = async (fileId: number | string, fileName: string) => {
+  const handleDownloadFile = (fileId: number | string, fileName: string) => {
     try {
       debugLog(`Downloading file with ID ${fileId}`);
       
@@ -717,63 +717,23 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         return;
       }
       
-      // Use the correct endpoint for downloading files
-      const response = await fetch(`https://api.akesomind.com/api/material/file/${fileId}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        // For 404, show a more helpful message
-        if (response.status === 404) {
-          console.error(`File not found: File ID ${fileId} returned 404`);
-          alert(`The file could not be found. It may have been deleted or is no longer available.`);
-          return;
-        }
-        
-        // Try to get more details about the error
-        let errorText = '';
-        try {
-          errorText = await response.text();
-        } catch (e) {
-          errorText = 'Could not get error details';
-        }
-        
-        throw new Error(`Failed to download file: ${response.status} - ${errorText}`);
-      }
-
-      // Create a blob from the response
-      const blob = await response.blob();
+      // Create a direct download link to the file
+      const downloadUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
+      debugLog(`Downloading file from ${downloadUrl}`);
       
-      // Check if the blob is empty or too small (likely an error)
-      if (blob.size < 10) { // Arbitrary small size that's likely an error
-        const text = await blob.text();
-        debugLog(`Warning: Downloaded file is very small (${blob.size} bytes): ${text}`);
-        
-        if (text.includes('error') || text.includes('Error') || blob.size === 0) {
-          alert('Error downloading file. The server returned an invalid response.');
-          return;
-        }
-      }
-      
-      // Create a download link
-      const url = window.URL.createObjectURL(blob);
+      // Create and click a download link
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = fileName || `file-${fileId}`;
+      a.target = '_self'; // Use _self to ensure it works well with credentials
       document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       
-      // Clean up
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 100);
-      
-      debugLog('File downloaded successfully');
+      debugLog(`File download initiated for ${fileName}`);
     } catch (error) {
-      console.error('Error downloading file:', error);
-      alert(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error initiating download:', error);
+      alert('An error occurred while trying to download the file.');
     }
   };
 
@@ -1390,8 +1350,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                                   <Button
                                     size="sm"
                                     onClick={() => handleDownloadFile(fileId, fileName)}
-                                    variant="outline"
-                                    className="flex items-center"
+                                    variant="primary"
+                                    className="flex items-center bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-blue-400"
                                   >
                                     <svg 
                                       className="w-4 h-4 mr-1" 
