@@ -29,6 +29,38 @@ const ClientProfileView: React.FC<ClientProfileViewProps> = ({
     }
   };
 
+  // Helper to render a profile field with icon
+  const renderProfileField = (label: string, value?: string, iconPath?: string) => {
+    if (!value) return null;
+    
+    return (
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-meta-2 dark:bg-meta-4">
+          {iconPath ? (
+            <svg
+              className="fill-primary dark:fill-white"
+              width="22"
+              height="22"
+              viewBox="0 0 22 22"
+            >
+              <path d={iconPath} />
+            </svg>
+          ) : (
+            <span className="text-primary dark:text-white text-xl font-bold">
+              {label.charAt(0)}
+            </span>
+          )}
+        </div>
+        <div>
+          <span className="text-sm font-medium">{label}</span>
+          <h4 className="text-title-md font-bold text-black dark:text-white">
+            {label === 'Birthday' && value ? new Date(value).toLocaleDateString() : value}
+          </h4>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
@@ -58,49 +90,19 @@ const ClientProfileView: React.FC<ClientProfileViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3 2xl:gap-7.5">
-          {data.birthday && (
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-meta-2 dark:bg-meta-4">
-                <svg
-                  className="fill-primary dark:fill-white"
-                  width="22"
-                  height="22"
-                  viewBox="0 0 22 22"
-                >
-                  <path d="M11 0C4.925 0 0 4.925 0 11s4.925 11 11 11 11-4.925 11-11S17.075 0 11 0zm0 20c-4.97 0-9-4.03-9-9s4.03-9 9-9 9 4.03 9 9-4.03 9-9 9z" />
-                  <path d="M12 6h-2v5H5v2h5v5h2v-5h5v-2h-5z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-sm font-medium">Birthday</span>
-                <h4 className="text-title-md font-bold text-black dark:text-white">
-                  {new Date(data.birthday).toLocaleDateString()}
-                </h4>
-              </div>
-            </div>
+          {renderProfileField(
+            'Birthday', 
+            data.birthday,
+            'M11 0C4.925 0 0 4.925 0 11s4.925 11 11 11 11-4.925 11-11S17.075 0 11 0zm0 20c-4.97 0-9-4.03-9-9s4.03-9 9-9 9 4.03 9 9-4.03 9-9 9z M12 6h-2v5H5v2h5v5h2v-5h5v-2h-5z'
           )}
-
-          {data.timezone && (
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-meta-2 dark:bg-meta-4">
-                <svg
-                  className="fill-primary dark:fill-white"
-                  width="22"
-                  height="22"
-                  viewBox="0 0 22 22"
-                >
-                  <path d="M11 0C4.925 0 0 4.925 0 11s4.925 11 11 11 11-4.925 11-11S17.075 0 11 0zm0 20c-4.97 0-9-4.03-9-9s4.03-9 9-9 9 4.03 9 9-4.03 9-9 9z" />
-                  <path d="M11 5v6l4 4 1.5-1.5-3.5-3.5V5z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-sm font-medium">Timezone</span>
-                <h4 className="text-title-md font-bold text-black dark:text-white">
-                  {data.timezone}
-                </h4>
-              </div>
-            </div>
+          
+          {renderProfileField(
+            'Timezone', 
+            data.timezone,
+            'M11 0C4.925 0 0 4.925 0 11s4.925 11 11 11 11-4.925 11-11S17.075 0 11 0zm0 20c-4.97 0-9-4.03-9-9s4.03-9 9-9 9 4.03 9 9-4.03 9-9 9z M11 5v6l4 4 1.5-1.5-3.5-3.5V5z'
           )}
+          
+          {renderProfileField('Last Session', data.lastSession)}
         </div>
       </div>
 

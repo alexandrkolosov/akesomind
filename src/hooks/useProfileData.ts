@@ -38,7 +38,7 @@ export interface ClientProfileData extends ProfileData {
   birthday?: string;
   lastSession?: string;
   phone?: string;
-  // Add other client-specific fields as needed
+  // Client-specific fields only
 }
 
 interface ProfileHookResult {
@@ -212,39 +212,31 @@ export function useClientProfile(clientId: string): ProfileHookResult {
     setError(null);
     
     try {
-      // First verify authentication
-      const isAuthed = await isAuthenticated();
-      if (!isAuthed) {
+      // Verify authentication
+      if (!(await isAuthenticated())) {
         throw new Error('Not authenticated');
       }
 
+      // Fetch the client profile data
       const response = await fetch(`https://api.akesomind.com/api/user/${clientId}`, {
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       
       if (!response.ok) {
-        throw new Error(`Error fetching client profile: ${response.statusText}`);
+        throw new Error(`Error fetching client profile: ${response.status} ${response.statusText}`);
       }
       
+      // Process the response
       const profileData = await response.json();
       
-      // Ensure role is set to 'Client' for client profiles
-      if (!profileData.role && !profileData.type) {
-        profileData.role = 'Client';
-      }
+      // Ensure consistent client role
+      profileData.role = 'Client';
       
       setData(profileData as ClientProfileData);
     } catch (err) {
-      console.error('useClientProfile: Error fetching client data:', err);
+      console.error('useClientProfile: Error:', err);
       setError(err instanceof Error ? err : new Error('An unknown error occurred'));
-      
-      // If we get a 404, it might mean the user doesn't exist or isn't accessible
-      if (err instanceof Error && err.message.includes('404')) {
-        console.warn(`useClientProfile: Client with ID ${clientId} not found or not accessible`);
-      }
     } finally {
       setLoading(false);
     }
@@ -252,7 +244,7 @@ export function useClientProfile(clientId: string): ProfileHookResult {
   
   useEffect(() => {
     fetchClientProfile();
-  }, [fetchClientProfile, clientId]);
+  }, [fetchClientProfile]);
   
   return { loading, error, data, refetch: fetchClientProfile };
 } 

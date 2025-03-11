@@ -45,8 +45,8 @@ interface UserMaterialsCardProps {
   clientId?: string;
 }
 
-// Mock data for materials since API endpoints are returning errors
-// In production, this would be fetched from: https://api.akesomind.com/api/material/assigment
+// Mock data for development and testing
+// In production, this would be fetched from: https://api.akesomind.com/api/material
 const MOCK_MATERIALS: MaterialAssignment[] = [
   {
     id: 1,
@@ -193,17 +193,13 @@ function determineUserRole(data: any): string | undefined {
 const isUserClient = (data: UserData | null | undefined): boolean => {
   if (!data) return false;
   
-  // First check direct properties that indicate client
-  if (data.isClient === true) return true;
-  
-  // Check role/type fields for 'client' (case-insensitive)
-  if (data.role && String(data.role).toLowerCase() === 'client') return true;
-  if (data.type && String(data.type).toLowerCase() === 'client') return true;
-  if (data.userType && String(data.userType).toLowerCase() === 'client') return true;
-  
-  // Use the determined role as fallback
-  const role = determineUserRole(data);
-  return role === 'Client';
+  // Check various properties that indicate client status
+  return Boolean(
+    data.isClient === true ||
+    (data.role && String(data.role).toLowerCase() === 'client') ||
+    (data.type && String(data.type).toLowerCase() === 'client') ||
+    (data.userType && String(data.userType).toLowerCase() === 'client')
+  );
 };
 
 // Utility function to determine if user is a therapist
@@ -218,6 +214,109 @@ const isUserTherapist = (data: UserData | null | undefined): boolean => {
   // Use the determined role as fallback
   const role = determineUserRole(data);
   return role === 'Therapist';
+};
+
+// Material Card Component for rendering a single material
+const MaterialCard = ({ assignment, onDownload, onOpenUrl }: { 
+  assignment: MaterialAssignment, 
+  onDownload: (fileId: number, fileName: string) => void,
+  onOpenUrl: (url: string) => void
+}) => {
+  // Skip rendering if material is undefined
+  if (!assignment.material) return null;
+  
+  const material = assignment.material;
+  
+  return (
+    <div className="border border-gray-100 rounded-lg p-4 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+      <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+        {material.name || 'Unnamed Material'}
+        {material.id && (
+          <span className="text-xs text-gray-500 ml-2">ID: {material.id}</span>
+        )}
+      </h4>
+      
+      {/* Display assigned client name for therapists */}
+      {assignment.client && (
+        <p className="text-xs text-primary mb-2">
+          Assigned to: {assignment.client.firstName || ''} {assignment.client.lastName || ''}
+          {(!assignment.client.firstName && !assignment.client.lastName) && 
+            `Client #${assignment.client.id || 'Unknown'}`}
+        </p>
+      )}
+      
+      {material.description && (
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          {material.description}
+        </p>
+      )}
+      
+      <div className="space-y-2">
+        {/* If material has files, show download buttons for each file */}
+        {material.files && material.files.length > 0 ? (
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Files:</p>
+            <div className="flex flex-wrap gap-2">
+              {material.files.map((file, index) => (
+                file.id !== undefined && (
+                  <button
+                    key={index}
+                    className="flex items-center bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-blue-400 text-xs"
+                    onClick={() => onDownload(file.id as number, file.name)}
+                  >
+                    <svg 
+                      className="w-4 h-4 mr-1" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24" 
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth="2" 
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    {file.name}
+                  </button>
+                )
+              ))}
+            </div>
+          </div>
+        ) : material.urls && material.urls.length > 0 ? (
+          // If material has urls, show buttons to open each url
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Links:</p>
+            <div className="flex flex-wrap gap-2">
+              {material.urls.map((url, index) => (
+                <button
+                  key={index}
+                  className="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-xs"
+                  onClick={() => onOpenUrl(url)}
+                >
+                  <svg 
+                    className="w-4 h-4 mr-1" 
+                    fill="currentColor" 
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5z" />
+                  </svg>
+                  {url.length > 30 ? `${url.substring(0, 30)}...` : url}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          // If material doesn't have files or URLs, show a message
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No downloadable content available for this material.
+          </p>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) {
@@ -241,7 +340,7 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
 
     try {
       // Since the API is not available, fall back to mock data
-      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material/assigment/client/${clientId}`);
+      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material`);
       logMessage('Using mock data for development');
       
       // Simulate API delay
@@ -271,7 +370,7 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
 
     try {
       // Since the API is not available, fall back to mock data
-      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material/assigment/client/${clientId}`);
+      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material`);
       logMessage('Using mock data for development');
       
       // Simulate API delay
@@ -300,7 +399,7 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
 
     try {
       // Since the API is not available, fall back to mock data
-      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material/`);
+      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material`);
       logMessage('Using mock data for development');
       
       // Simulate API delay
@@ -511,90 +610,14 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
 
       {!isLoading && !error && materials.length > 0 && (
         <div className="space-y-4">
-          {materials.map((assignment) => {
-            // Skip rendering if material is undefined
-            if (!assignment.material) return null;
-            
-            return (
-              <div key={assignment.id} className="border border-gray-100 rounded-lg p-4 dark:border-gray-700">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
-                  {assignment.material.name || 'Unnamed Material'}
-                </h4>
-                
-                {/* Display assigned client name for therapists */}
-                {userData && isUserTherapist(userData) && assignment.client && (
-                  <p className="text-xs text-primary mb-2">
-                    Assigned to: {assignment.client.firstName || ''} {assignment.client.lastName || ''}
-                    {(!assignment.client.firstName && !assignment.client.lastName) && 
-                      `Client #${assignment.client.id || 'Unknown'}`}
-                  </p>
-                )}
-                
-                {assignment.material.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                    {assignment.material.description}
-                  </p>
-                )}
-                
-                <div className="space-y-2">
-                  {/* If material has files, show download buttons for each file */}
-                  {assignment.material.files && assignment.material.files.length > 0 ? (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Files:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {assignment.material.files.map((file, index) => (
-                          file.id !== undefined && (
-                            <Button
-                              key={index}
-                              className="flex items-center bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-blue-400 text-xs"
-                              onClick={() => handleDownload(file.id as number, file.name)}
-                            >
-                              <svg 
-                                className="w-4 h-4 mr-1" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                viewBox="0 0 24 24" 
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round" 
-                                  strokeWidth="2" 
-                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                                />
-                              </svg>
-                              Download {file.name}
-                            </Button>
-                          )
-                        ))}
-                      </div>
-                    </div>
-                  ) : assignment.material.urls && assignment.material.urls.length > 0 ? (
-                    // If material has urls, show buttons to open each url
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Links:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {assignment.material.urls.map((url, index) => (
-                          <Button
-                            key={index}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-xs"
-                            onClick={() => openUrl(url)}
-                          >
-                            Link {index + 1}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    // If material doesn't have files or URLs, show a message
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      No downloadable content available for this material.
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {materials.map((assignment) => (
+            <MaterialCard 
+              key={assignment.id} 
+              assignment={assignment} 
+              onDownload={handleDownload}
+              onOpenUrl={openUrl}
+            />
+          ))}
           
           {/* Debug information section - Only show in development environment */}
           {process.env.NODE_ENV === 'development' && (
