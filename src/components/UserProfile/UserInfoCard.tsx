@@ -82,8 +82,32 @@ const MaterialCard = ({ material, onDownload }: {
           <div className="space-y-2">
             {materialData.files.map((file: any, fileIndex: number) => {
               // Handle different file data structures
-              const fileId = typeof file === 'object' ? file.id : (typeof file === 'number' ? file : null);
-              const fileName = typeof file === 'object' ? (file.name || `File ${fileIndex + 1}`) : `File ${fileIndex + 1}`;
+              let fileId: number | string | null = null;
+              let fileName: string = `File ${fileIndex + 1}`;
+              
+              // Extract fileId from various possible structures
+              if (typeof file === 'object') {
+                // Get ID from either direct id property or extract from URL
+                if (file.id !== undefined) {
+                  fileId = file.id;
+                } else if (file.url) {
+                  // Extract ID from URL pattern like https://api.akesomind.com/api/material/file/42
+                  const urlParts = file.url.split('/');
+                  fileId = urlParts[urlParts.length - 1];
+                }
+                
+                // Get filename
+                fileName = file.name || fileName;
+              } else if (typeof file === 'number') {
+                fileId = file;
+              } else if (typeof file === 'string' && file.includes('/')) {
+                // Handle case where file might be a URL string
+                const urlParts = file.split('/');
+                fileId = urlParts[urlParts.length - 1];
+                fileName = `File ${fileIndex + 1}`;
+              }
+              
+              console.log('Processing file:', { original: file, fileId, fileName });
               
               if (!fileId) return null;
               
@@ -105,7 +129,7 @@ const MaterialCard = ({ material, onDownload }: {
                     </span>
                   </div>
                   <button
-                    onClick={() => onDownload(fileId, fileName)}
+                    onClick={() => onDownload(fileId!, fileName)}
                     className="flex items-center bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-blue-400"
                   >
                     <svg 
@@ -756,23 +780,31 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         isArray: Array.isArray(responseData)
       });
       
+      // Add more detailed debugging about the response structure
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Complete API response:', responseData);
+        if (Array.isArray(responseData) && responseData.length > 0) {
+          console.log('Material sample structure:', responseData[0]);
+        } else if (typeof responseData === 'object' && responseData !== null) {
+          // Check for common response wrapper patterns
+          const possibleArrays = ['data', 'content', 'list', 'materials', 'items', 'results'];
+          for (const key of possibleArrays) {
+            if (Array.isArray(responseData[key]) && responseData[key].length > 0) {
+              console.log(`Material sample structure from ${key}:`, responseData[key][0]);
+              break;
+            }
+          }
+        }
+      }
+      
       // Find materials array regardless of response structure
       let materialsArray = extractMaterialsFromResponse(responseData);
       
       debugLog(`fetchClientMaterials: Extracted ${materialsArray.length} materials`);
       
-      // Filter client-specific materials if needed
-      if (clientId) {
-        const filteredMaterials = materialsArray.filter(material => {
-          // Check if client ID matches in standard material object or assignment object
-          return material.clientId === parseInt(clientId) || 
-                 (material.client && material.client.id === parseInt(clientId));
-        });
-        debugLog(`fetchClientMaterials: Filtered to ${filteredMaterials.length} materials for client ${clientId}`);
-        setMaterials(filteredMaterials);
-      } else {
-        setMaterials(materialsArray);
-      }
+      // IMPORTANT: The backend API already returns only materials assigned to the specified client
+      // So we don't need to filter them again, which was causing the issue
+      setMaterials(materialsArray);
       
       // Update last refreshed timestamp
       setLastRefreshed(new Date());
@@ -795,31 +827,42 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     }
     
     if (typeof responseData === 'object') {
-      // Check common response formats
-      if (responseData.list && Array.isArray(responseData.list)) {
-        return responseData.list;
-      }
-      if (responseData.materials && Array.isArray(responseData.materials)) {
-        return responseData.materials;
-      }
-      if (responseData.content && Array.isArray(responseData.content)) {
-        return responseData.content;
-      }
-      if (responseData.data && Array.isArray(responseData.data)) {
-        return responseData.data;
+      // Common response wrapper fields to check
+      const possibleArrayFields = [
+        'list', 'materials', 'content', 'data', 'items', 'results', 
+        'assignments', 'materialAssignments', 'clientMaterials'
+      ];
+      
+      // First check all common fields for arrays
+      for (const field of possibleArrayFields) {
+        if (responseData[field] && Array.isArray(responseData[field]) && responseData[field].length > 0) {
+          debugLog(`Found materials array in '${field}' property with ${responseData[field].length} items`);
+          return responseData[field];
+        }
       }
       
-      // Last resort: try to find any array property
+      // Next try to find any array property
       const arrayProps = Object.keys(responseData).filter(key => 
         Array.isArray(responseData[key]) && responseData[key].length > 0
       );
       
       if (arrayProps.length > 0) {
-        debugLog(`Found potential materials array in property: ${arrayProps[0]}`);
+        debugLog(`Found potential materials array in property: ${arrayProps[0]} with ${responseData[arrayProps[0]].length} items`);
         return responseData[arrayProps[0]];
+      }
+      
+      // If we have an object with id/name/etc., it might be a single material
+      if (responseData.id !== undefined || 
+          responseData.materialId !== undefined ||
+          responseData.name !== undefined) {
+        debugLog('Found a single material object, wrapping in array');
+        return [responseData];
       }
     }
     
+    debugLog('Could not find materials array in response. Response type: ' + typeof responseData);
+    
+    // Last resort: return an empty array
     return [];
   };
 
@@ -845,8 +888,16 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         return;
       }
       
-      // Create a direct download link to the file
-      const downloadUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
+      // Determine if fileId is a full URL or just an ID
+      let downloadUrl = '';
+      if (typeof fileId === 'string' && (fileId.startsWith('http://') || fileId.startsWith('https://'))) {
+        // It's already a full URL
+        downloadUrl = fileId;
+      } else {
+        // Construct API URL from the ID
+        downloadUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
+      }
+      
       debugLog(`Downloading file from ${downloadUrl}`);
       
       // Create and click a download link
