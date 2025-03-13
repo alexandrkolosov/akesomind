@@ -184,13 +184,15 @@ export const login = async (email: string, password: string) => {
 // Logout function
 export const logout = async (): Promise<void> => {
   try {
-    await fetch('https://api.akesomind.com/api/user/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
+    // Note: The /api/user/logout endpoint is not used in this implementation
+    // We're just clearing local storage and redirecting to sign in page
+    
+    // Clear localStorage
+    localStorage.removeItem('userData');
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
+    // Redirect to signin page
     window.location.href = '/signin';
   }
 };
@@ -764,35 +766,20 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 };
 
 // Request a new verification email
+// Note: This function is not currently used in the application 
+// but is kept for potential future use
 export const resendVerificationEmail = async (email: string) => {
   try {
-    const response = await fetch('https://api.akesomind.com/api/public/user/resend-verification', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    if (response.ok) {
-      return {
-        success: true,
-        message: 'Verification email sent. Please check your inbox.'
-      };
-    } else {
-      try {
-        const errorData = await response.json();
-        return {
-          success: false,
-          error: errorData.message || 'Failed to resend verification email.'
-        };
-      } catch (e) {
-        return {
-          success: false,
-          error: `Failed to resend verification email. (${response.status})`
-        };
-      }
-    }
+    // In a future implementation, this would call the verification endpoint
+    // For now, we just simulate a successful response
+    
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return {
+      success: true,
+      message: 'Verification email sent. Please check your inbox.'
+    };
   } catch (error) {
     console.error('Error resending verification email:', error);
     return {

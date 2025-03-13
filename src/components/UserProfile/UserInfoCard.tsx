@@ -107,8 +107,6 @@ const MaterialCard = ({ material, onDownload }: {
                 fileName = `File ${fileIndex + 1}`;
               }
               
-              console.log('Processing file:', { original: file, fileId, fileName });
-              
               if (!fileId) return null;
               
               return (
@@ -196,18 +194,8 @@ const MaterialCard = ({ material, onDownload }: {
 };
 
 export default function UserInfoCard({ clientId }: UserInfoCardProps) {
-  // Reduce console logging to essential events only
-  const debugLog = useCallback((message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'production') return;
-    if (data) {
-      console.log(message, data);
-    } else {
-      console.log(message);
-    }
-  }, []);
-
-  debugLog('UserInfoCard: Component initializing', { clientId });
   const componentMounted = useRef(true);
+  const loadAttempts = useRef(0);
   const { isOpen, openModal, closeModal } = useModal();
   const [isReady, setIsReady] = useState(false);
   const [loggedInUserData, setLoggedInUserData] = useState<any>(null);
@@ -225,13 +213,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       // Get current user's email
       const userData = localStorage.getItem('userData');
       if (!userData) {
-        console.log('UserInfoCard: No user data in localStorage, cannot verify cache ownership');
         return null;
       }
 
       const currentUserEmail = JSON.parse(userData).email;
       if (!currentUserEmail) {
-        console.log('UserInfoCard: No email found in userData, cannot verify cache ownership');
         return null;
       }
 
@@ -244,10 +230,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
 
         // Verify the cached data belongs to the current user
         if (parsedData.email === currentUserEmail) {
-          console.log(`UserInfoCard: Found cached profile data for ${currentUserEmail}`);
           return parsedData;
         } else {
-          console.log('UserInfoCard: Cached profile data email mismatch, clearing invalid cache');
           localStorage.removeItem(cacheKey);
           return null;
         }
@@ -264,18 +248,13 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       const userDataStr = localStorage.getItem('userData');
       if (userDataStr) {
         const parsedUserData = JSON.parse(userDataStr);
-        debugLog('UserInfoCard: Loaded logged-in user data:', {
-          id: parsedUserData.id,
-          email: parsedUserData.email,
-          role: parsedUserData.role || parsedUserData.type || 'Unknown'
-        });
         setLoggedInUserData(parsedUserData);
       }
     } catch (e) {
       console.error('UserInfoCard: Error loading user data from localStorage:', e);
     }
     // Only run once on mount
-  }, [debugLog]);
+  }, []);
 
   // The data you receive from your GET endpoint
   // should align with your UpdateUser class
@@ -306,26 +285,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   // If we have cached data, mark as ready
   useEffect(() => {
     if (getCachedData()) {
-      console.log('UserInfoCard: Using cached data, marking as ready');
       setIsReady(true);
-    }
-  }, []);
-
-  // User Role information from localStorage
-  useEffect(() => {
-    try {
-      const userData = localStorage.getItem('userData');
-      if (userData) {
-        const parsedData = JSON.parse(userData);
-        console.log('UserInfoCard: User role information from localStorage:', {
-          role: parsedData.role || 'Not set',
-          email: parsedData.email || 'Not set'
-        });
-      } else {
-        console.log('UserInfoCard: No user data found in localStorage');
-      }
-    } catch (error) {
-      console.error('UserInfoCard: Error parsing user data from localStorage:', error);
     }
   }, []);
 
@@ -366,9 +326,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
 
   // Memoize fetchUserDetails to prevent recreating this function on each render
   const fetchUserDetails = useCallback(async () => {
+    // Increment load attempts counter
+    loadAttempts.current += 1;
+    
     setLoading(true);
     setError("");
-    console.log('UserInfoCard: Fetching user details, initial state:', { isReady, loading });
 
     try {
       // Always try to get stored profile data from localStorage first as a backup
@@ -378,7 +340,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         if (userData) {
           const parsedData = JSON.parse(userData);
           backupData = parsedData;
-          console.log('UserInfoCard: Loaded backup data from localStorage:', parsedData);
         }
       } catch (e) {
         console.error('UserInfoCard: Error parsing backup data:', e);
@@ -389,14 +350,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       const userIdToFetch = clientId || (backupData?.id?.toString() || '');
       const endpoint = `https://api.akesomind.com/api/user/${userIdToFetch}`;
       
-      console.log('UserInfoCard: Using API endpoint:', endpoint);
-      
-      // If we're already using a cached profile (not from this session)
-      // we could skip the fetch and use the stored data directly
-      
       try {
         const response = await fetchWithAuth(endpoint);
-        console.log('UserInfoCard: Full API response:', response);
         
         // If the response is valid, extract user data from it
         if (response && response.id) {
@@ -432,26 +387,21 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         }
       }
     } finally {
-      // Combine these state updates to reduce renders
-      debugLog('UserInfoCard: Completing data fetch');
       setLoading(false);
       setIsReady(true);
     }
-  }, [clientId, debugLog]);
+  }, [clientId]);
 
   // Reset state when clientId changes
   useEffect(() => {
     // If we already have cached data, only update if it doesn't match clientId
     const cachedData = getCachedData();
     if (cachedData) {
-      console.log('UserInfoCard: Found cached data on mount/update');
       if (clientId && cachedData.id !== clientId) {
-        console.log('UserInfoCard: Cached data is for different client, fetching new data');
         setLoading(true);
         setIsReady(false);
         fetchUserDetails();
       } else {
-        console.log('UserInfoCard: Using cached data, skipping fetch');
         setProfileData(cachedData);
         setLoading(false);
         setIsReady(true);
@@ -462,16 +412,13 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       setLoading(true);
       setIsReady(false);
       setError("");
-      console.log('UserInfoCard: Starting data fetch, reset loading=true, isReady=false');
       fetchUserDetails();
     }
 
     // Don't set componentMounted to false on cleanup
     // This allows state updates to complete even if parent temporarily unmounts
     return () => {
-      console.log('UserInfoCard: Component cleanup - preserving data for remount');
-      // Note: Not setting componentMounted.current = false;
-      // This is intentional to allow state updates to complete
+      // Component cleanup - preserving data for remount
     };
   }, [clientId, fetchUserDetails]);
 
@@ -479,17 +426,13 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   // this acts as a recovery mechanism for components that unmount during data fetch
   useEffect(() => {
     const checkForDataRecovery = () => {
-      // If we're stuck in loading state but have cached data, recover
-      if (loading && !isReady) {
-        const cachedData = getCachedData();
-        if (cachedData && cachedData.id) {
-          console.log('UserInfoCard: Recovering from interrupted load using cached data');
-          setProfileData(cachedData);
-          setLoading(false);
+      if (!isReady && !loading && loadAttempts.current > 1) {
+        // Recovering from interrupted load using cached data
+        if (profileData && Object.keys(profileData).length > 0) {
           setIsReady(true);
+          setLoading(false);
         } else {
-          // If we're stuck loading with no cached data, force a fresh fetch
-          console.log('UserInfoCard: Stuck in loading state with no cached data, forcing refresh');
+          // Stuck in loading state with no cached data, forcing refresh
           fetchUserDetails();
         }
       }
@@ -501,17 +444,13 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     return () => {
       clearTimeout(recoveryTimer);
     };
-  }, [loading, isReady, fetchUserDetails]);
+  }, [isReady, loading, fetchUserDetails]);
 
   // Optimize the debug logging useEffect to run less frequently
   useEffect(() => {
-    // Only log significant state changes, not every render
+    // Only perform caching when component is ready
     if (isReady) {
-      debugLog('UserInfoCard: Component ready with profile data', {
-        hasProfileData: Boolean(profileData && profileData.id),
-        profileType: profileData?.type || profileData?.role || 'Unknown',
-        isCached: Boolean(getCachedData())
-      });
+      // No need to log here
     }
 
     return () => {
@@ -525,7 +464,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         }
       }
     };
-  }, [isReady, profileData, getCachedData, debugLog]);
+  }, [isReady, profileData]);
 
   // Add a dedicated useEffect to track loading state changes
   useEffect(() => {
@@ -636,14 +575,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
           setSaveError("An unexpected error occurred while updating your profile.");
         }
       }
-
-      // Run the test utility to help diagnose the issue
-      console.log('UserInfoCard: Running test utility to determine correct zoneId format...');
-      try {
-        // testZoneIdFormats();
-      } catch (testError) {
-        console.error('UserInfoCard: Error running test utility:', testError);
-      }
     } finally {
       if (componentMounted.current) {
         setSaveLoading(false);
@@ -662,7 +593,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         if (userEmail) {
           const cacheKey = `userProfileData_${userEmail}`;
           localStorage.removeItem(cacheKey);
-          console.log(`UserInfoCard: Cleared cached profile data for ${userEmail}`);
         }
       }
     } catch (e) {
@@ -731,13 +661,11 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   const fetchClientMaterials = useCallback(async () => {
     // Skip if no valid client ID is available
     if (!clientId && (!profileData?.id || !isUserClient(profileData))) {
-      debugLog('fetchClientMaterials: No client ID available or user is not a client');
       return;
     }
 
     const userId = clientId || profileData?.id?.toString();
     if (!userId) {
-      debugLog('fetchClientMaterials: Unable to determine user ID');
       return;
     }
 
@@ -745,9 +673,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     setMaterialsError(null);
 
     try {
-      debugLog(`fetchClientMaterials: Fetching materials for client ID: ${userId}`);
-      debugLog(`Using API endpoint: https://api.akesomind.com/api/material`);
-
       const response = await fetch('https://api.akesomind.com/api/material', {
         method: 'GET',
         credentials: 'include',
@@ -759,11 +684,8 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       // Handle common error responses
       if (!response.ok) {
         const errorStatus = response.status;
-        debugLog(`fetchClientMaterials: API returned error status: ${errorStatus}`);
-        
         if (errorStatus === 404) {
           // 404 is a normal "no materials" state, not an error
-          debugLog('fetchClientMaterials: No materials found (404).');
           setMaterials([]);
           setLastRefreshed(new Date());
           return;
@@ -775,35 +697,10 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       // Parse the response
       const responseData = await response.json();
       
-      debugLog('fetchClientMaterials: Received API response', {
-        type: typeof responseData,
-        isArray: Array.isArray(responseData)
-      });
-      
-      // Add more detailed debugging about the response structure
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Complete API response:', responseData);
-        if (Array.isArray(responseData) && responseData.length > 0) {
-          console.log('Material sample structure:', responseData[0]);
-        } else if (typeof responseData === 'object' && responseData !== null) {
-          // Check for common response wrapper patterns
-          const possibleArrays = ['data', 'content', 'list', 'materials', 'items', 'results'];
-          for (const key of possibleArrays) {
-            if (Array.isArray(responseData[key]) && responseData[key].length > 0) {
-              console.log(`Material sample structure from ${key}:`, responseData[key][0]);
-              break;
-            }
-          }
-        }
-      }
-      
       // Find materials array regardless of response structure
       let materialsArray = extractMaterialsFromResponse(responseData);
       
-      debugLog(`fetchClientMaterials: Extracted ${materialsArray.length} materials`);
-      
       // IMPORTANT: The backend API already returns only materials assigned to the specified client
-      // So we don't need to filter them again, which was causing the issue
       setMaterials(materialsArray);
       
       // Update last refreshed timestamp
@@ -815,7 +712,7 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
     } finally {
       setIsLoadingMaterials(false);
     }
-  }, [clientId, profileData, debugLog, isUserClient]);
+  }, [clientId, profileData, isUserClient]);
 
   // Helper function to extract materials array from various API response formats
   const extractMaterialsFromResponse = (responseData: any): any[] => {
@@ -836,7 +733,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       // First check all common fields for arrays
       for (const field of possibleArrayFields) {
         if (responseData[field] && Array.isArray(responseData[field]) && responseData[field].length > 0) {
-          debugLog(`Found materials array in '${field}' property with ${responseData[field].length} items`);
           return responseData[field];
         }
       }
@@ -847,7 +743,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       );
       
       if (arrayProps.length > 0) {
-        debugLog(`Found potential materials array in property: ${arrayProps[0]} with ${responseData[arrayProps[0]].length} items`);
         return responseData[arrayProps[0]];
       }
       
@@ -855,12 +750,9 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       if (responseData.id !== undefined || 
           responseData.materialId !== undefined ||
           responseData.name !== undefined) {
-        debugLog('Found a single material object, wrapping in array');
         return [responseData];
       }
     }
-    
-    debugLog('Could not find materials array in response. Response type: ' + typeof responseData);
     
     // Last resort: return an empty array
     return [];
@@ -880,8 +772,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
   // Function to download a material file
   const handleDownloadFile = (fileId: number | string, fileName: string) => {
     try {
-      debugLog(`Downloading file with ID ${fileId}`);
-      
       // Ensure fileId is valid
       if (!fileId) {
         alert('Invalid file ID. Cannot download file.');
@@ -898,8 +788,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
         downloadUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
       }
       
-      debugLog(`Downloading file from ${downloadUrl}`);
-      
       // Create and click a download link
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -908,8 +796,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
-      debugLog(`File download initiated for ${fileName}`);
     } catch (error) {
       console.error('Error initiating download:', error);
       alert('An error occurred while trying to download the file.');
@@ -1197,7 +1083,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                     value={typeof profileData.zoneId === 'object' ? profileData.zoneId?.id || "UTC" : profileData.zoneId || "UTC"}
                     onChange={(e) => {
                       const zoneIdValue = e.target.value;
-                      console.log('Setting zoneId to:', zoneIdValue);
                       setProfileData({
                         ...profileData,
                         zoneId: {
@@ -1300,19 +1185,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
 
       {/* User Profile Details with Tabs */}
       <div className="mt-8">
-        {/* Debug information - can be removed in production */}
-        {process.env.NODE_ENV !== 'production' && (
-          <div className="mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">
-            <p>Debug Info:</p>
-            <p>Client ID param: {clientId || 'Not provided'}</p>
-            <p>User ID: {profileData.id || 'Not set'}</p>
-            <p>User Type: {profileData.type || 'Not set'}</p>
-            <p>User Role: {profileData.role || 'Not set'}</p>
-            <p>User Type from localStorage: {JSON.parse(localStorage.getItem('userData') || '{}').type || 'Not set'}</p>
-            <p>Is Client: {isUserClient(profileData) ? 'Yes' : 'No'}</p>
-          </div>
-        )}
-        
         {/* Tabs Navigation - only show Materials tab for clients */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
           <button
@@ -1482,10 +1354,6 @@ export default function UserInfoCard({ clientId }: UserInfoCardProps) {
                 >
                   Reload Materials
                 </button>
-                <p className="mt-3 text-xs text-gray-500">
-                  Debug info: Materials data type: {typeof materials}, 
-                  Value: {JSON.stringify(materials).substring(0, 100)}{JSON.stringify(materials).length > 100 ? '...' : ''}
-                </p>
               </div>
             ) : materials.length === 0 ? (
               <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg text-center">

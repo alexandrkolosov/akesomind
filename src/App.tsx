@@ -11,6 +11,7 @@ import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
 import NotFound from "./pages/OtherPage/NotFound";
 import UserProfiles from "./pages/UserProfiles";
+import ClientSessions from "./pages/ClientSessions";
 import Carousel from "./pages/UiElements/Carousel";
 import Maintenance from "./pages/OtherPage/Maintenance";
 import FiveZeroZero from "./pages/OtherPage/FiveZeroZero";
@@ -87,6 +88,7 @@ export default function App() {
             <Route index path="/" element={<Home />} />
             <Route path="/profile" element={<UserProfiles />} />
             <Route path="/profile/:id" element={<UserProfiles />} />
+            <Route path="/sessions" element={<ClientSessions />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/invoice" element={<Invoices />} />
             <Route path="/faq" element={<Faqs />} />

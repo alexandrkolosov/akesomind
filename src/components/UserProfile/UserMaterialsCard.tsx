@@ -323,25 +323,16 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
   const [materials, setMaterials] = useState<MaterialAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
   
-  const logMessage = (message: string) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`UserMaterialsCard: ${message}`);
-    }
-  };
-
   // Memoize fetch functions to prevent recreation on each render
   const fetchClientMaterials = useCallback(async (clientId: string) => {
     setIsLoading(true);
     setError("");
-    logMessage(`CLIENT VIEW: Fetching materials for client ID: ${clientId}`);
-
+    
     try {
       // Since the API is not available, fall back to mock data
-      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material`);
-      logMessage('Using mock data for development');
+      console.log('Using mock data for development');
       
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -351,27 +342,24 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
         assignment => assignment.client.id === clientIdNum
       );
       
-      logMessage(`CLIENT VIEW: Found ${clientMaterials.length} mock materials for client ${clientId}`);
+      console.log(`CLIENT VIEW: Found ${clientMaterials.length} mock materials for client ${clientId}`);
       setMaterials(clientMaterials);
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching client materials:", error);
-      logMessage(`ERROR fetching client materials: ${error instanceof Error ? error.message : String(error)}`);
       setError("An error occurred while loading your materials.");
       setIsLoading(false);
     }
-  }, [logMessage]);
+  }, []);
 
   // Similar pattern for therapist viewing client materials
   const fetchTherapistViewingClientMaterials = useCallback(async (clientId: string) => {
     setIsLoading(true);
     setError("");
-    logMessage(`THERAPIST VIEW: Fetching materials for client ID: ${clientId}`);
-
+    
     try {
       // Since the API is not available, fall back to mock data
-      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material`);
-      logMessage('Using mock data for development');
+      console.log('Using mock data for development');
       
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -381,26 +369,23 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
         assignment => assignment.client.id === clientIdNum
       );
       
-      logMessage(`THERAPIST VIEW: Found ${clientMaterials.length} mock materials for client ${clientId}`);
+      console.log(`THERAPIST VIEW: Found ${clientMaterials.length} mock materials for client ${clientId}`);
       setMaterials(clientMaterials);
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching client materials for therapist:", error);
-      logMessage(`ERROR fetching client materials for therapist: ${error instanceof Error ? error.message : String(error)}`);
       setError("An error occurred while loading client materials.");
       setIsLoading(false);
     }
-  }, [logMessage]);
+  }, []);
 
   const fetchAllMaterials = useCallback(async (therapistId?: string) => {
     setIsLoading(true);
     setError("");
-    logMessage(`THERAPIST VIEW: Fetching all materials${therapistId ? ` for therapist ID: ${therapistId}` : ''}`);
-
+    
     try {
       // Since the API is not available, fall back to mock data
-      logMessage(`NOTE: API endpoint not available. Would have called: GET https://api.akesomind.com/api/material`);
-      logMessage('Using mock data for development');
+      console.log('Using mock data for development');
       
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -413,20 +398,19 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
         filteredMaterials = MOCK_MATERIALS.filter(
           assignment => assignment.client.id === therapistIdNum
         );
-        logMessage(`THERAPIST VIEW: Filtered to ${filteredMaterials.length} mock materials for therapist ID ${therapistId}`);
+        console.log(`THERAPIST VIEW: Filtered to ${filteredMaterials.length} mock materials for therapist ID ${therapistId}`);
       } else {
-        logMessage(`THERAPIST VIEW: Showing all ${filteredMaterials.length} mock materials`);
+        console.log(`THERAPIST VIEW: Showing all ${filteredMaterials.length} mock materials`);
       }
       
       setMaterials(filteredMaterials);
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching therapist materials:", error);
-      logMessage(`ERROR fetching therapist materials: ${error instanceof Error ? error.message : String(error)}`);
       setError("An error occurred while loading materials.");
       setIsLoading(false);
     }
-  }, [logMessage]);
+  }, []);
 
   // First useEffect - Load user data from localStorage only once on mount
   useEffect(() => {
@@ -438,26 +422,18 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
           
           if (parsedUserData) {
             setUserData(parsedUserData);
-            
-            // More detailed logging about roles
-            logMessage(`User data from localStorage: Role=${parsedUserData.role}, Type=${parsedUserData.type}, UserType=${parsedUserData.userType}`);
-            logMessage(`User ID: ${parsedUserData.id}, Email: ${parsedUserData.email || 'not set'}`);
-            
-            // Debug therapist detection
-            const isTherapistUser = isUserTherapist(parsedUserData);
-            logMessage(`Is user a therapist? ${isTherapistUser ? 'YES' : 'NO'}`);
           }
         } else {
-          logMessage('No user data found in localStorage');
+          console.log('No user data found in localStorage');
         }
       } catch (error) {
         console.error('Error parsing user data from localStorage:', error);
       }
     };
 
-    logMessage(`UserMaterialsCard mounted with clientId: ${clientId || 'undefined'}`);
+    console.log(`UserMaterialsCard mounted with clientId: ${clientId || 'undefined'}`);
     loadUserData();
-  }, [logMessage]); // Only run once on mount, include logMessage
+  }, []); // Only run once on mount
 
   // Keep the memoized userRoles
   const userRoles = useMemo(() => {
@@ -492,9 +468,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
       }
     }
     
-    logMessage(`User role: ${isClient ? 'Client' : isTherapist ? 'Therapist' : 'Unknown'}`);
-    logMessage(`Is viewing own profile: ${isViewingOwnProfile}`);
-    
     if (isClient && isViewingOwnProfile) {
       // Client viewing their own materials
       const clientUserId = userData?.id?.toString();
@@ -517,18 +490,18 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     } else {
       setError("Unable to determine your role. Please refresh the page.");
     }
-  }, [clientId, userData, userRoles, fetchClientMaterials, fetchTherapistViewingClientMaterials, fetchAllMaterials, logMessage]);
+  }, [clientId, userData, userRoles, fetchClientMaterials, fetchTherapistViewingClientMaterials, fetchAllMaterials]);
 
   // Function to handle file downloads
   const handleDownload = (fileId: number, fileName: string) => {
     if (!fileId) {
-      logMessage(`Cannot download file - missing file ID`);
+      console.log(`Cannot download file - missing file ID`);
       return;
     }
     
     // Create a direct download link to the file
     const downloadUrl = `https://api.akesomind.com/api/material/file/${fileId}`;
-    logMessage(`Downloading file: ${fileName} from ${downloadUrl}`);
+    console.log(`Downloading file: ${fileName} from ${downloadUrl}`);
     
     // Create and click a download link
     const a = document.createElement('a');
@@ -539,11 +512,10 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
     a.click();
     document.body.removeChild(a);
     
-    logMessage(`File download initiated for ${fileName}`);
+    console.log(`File download initiated for ${fileName}`);
   };
 
   const openUrl = (url: string) => {
-    console.log(`Opening URL: ${url}`);
     window.open(url, '_blank');
   };
 
@@ -565,8 +537,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
               const uploadForm = document.getElementById('upload-materials-form');
               if (uploadForm) {
                 uploadForm.scrollIntoView({ behavior: 'smooth' });
-              } else {
-                logMessage("Upload form element not found in DOM");
               }
             }}
           >
@@ -593,18 +563,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
       {!isLoading && !error && materials.length === 0 && (
         <div className="text-gray-500 py-4">
           No materials found.
-          {process.env.NODE_ENV === 'development' && debugInfo.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded text-xs">
-              <details>
-                <summary className="cursor-pointer">Debug Information</summary>
-                <pre className="mt-2 whitespace-pre-wrap">
-                  {debugInfo.map((info, i) => (
-                    <div key={i}>{info}</div>
-                  ))}
-                </pre>
-              </details>
-            </div>
-          )}
         </div>
       )}
 
@@ -618,33 +576,6 @@ export default function UserMaterialsCard({ clientId }: UserMaterialsCardProps) 
               onOpenUrl={openUrl}
             />
           ))}
-          
-          {/* Debug information section - Only show in development environment */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-800 rounded text-xs">
-              <details>
-                <summary className="cursor-pointer font-medium">Debug Information</summary>
-                <div className="mt-2 overflow-auto max-h-60">
-                  <div className="mb-2">
-                    <span className="font-medium">User Role:</span> {userRoles.isTherapist ? 'Therapist' : userRoles.isClient ? 'Client' : 'Unknown'}
-                  </div>
-                  <div className="mb-2">
-                    <span className="font-medium">Client ID:</span> {clientId || 'Not viewing a client'}
-                  </div>
-                  <div className="mb-2">
-                    <span className="font-medium">Logs:</span>
-                  </div>
-                  <pre className="whitespace-pre-wrap bg-gray-200 dark:bg-gray-700 p-2 rounded">
-                    {debugInfo.map((info, i) => (
-                      <div key={i} className={info.includes('ERROR') ? 'text-red-500' : info.includes('WARN') ? 'text-yellow-500' : ''}>
-                        {info}
-                      </div>
-                    ))}
-                  </pre>
-                </div>
-              </details>
-            </div>
-          )}
         </div>
       )}
     </div>

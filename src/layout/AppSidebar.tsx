@@ -42,6 +42,11 @@ const navItems: NavItem[] = [
     path: "/calendar",
   },
   {
+    icon: <ChatIcon />,
+    name: "Sessions",
+    path: "/sessions",
+  },
+  {
     name: "Client List",
     icon: <TaskIcon />,
     subItems: [

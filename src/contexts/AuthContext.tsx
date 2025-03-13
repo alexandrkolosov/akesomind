@@ -109,21 +109,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    // Call logout endpoint if your API has one
-    fetch('https://api.akesomind.com/api/user/logout', {
-      method: 'POST',
-      credentials: 'include',
-    })
-        .then(() => {
-          setIsAuthenticated(false);
-          navigate('/signin');
-        })
-        .catch((err) => {
-          console.error('Logout failed:', err);
-          // Even if the API call fails, we should still log out locally
-          setIsAuthenticated(false);
-          navigate('/signin');
-        });
+    // Note: The logout endpoint is not used in this implementation
+    // Clear auth state and redirect
+    localStorage.removeItem('userData');
+    setIsAuthenticated(false);
+    navigate('/signin');
   };
 
   return (

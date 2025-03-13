@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ClientProfileData } from '../../hooks/useProfileData';
 import Modal from '../ui/Modal';
 import EditClientProfileForm from './EditClientProfileForm';
+import { Link } from 'react-router-dom';
 
 interface ClientProfileViewProps {
   data: ClientProfileData;
@@ -78,14 +79,22 @@ const ClientProfileView: React.FC<ClientProfileViewProps> = ({
                 <p className="text-sm text-black dark:text-white">{data.phone}</p>
               )}
             </div>
-            {isEditable && (
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="inline-flex items-center justify-center rounded-full bg-primary py-2 px-6 text-sm font-medium text-white hover:bg-opacity-90"
+            <div className="flex gap-3">
+              {isEditable && (
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center justify-center rounded-full bg-primary py-2 px-6 text-sm font-medium text-white hover:bg-opacity-90"
+                >
+                  Edit Profile
+                </button>
+              )}
+              <Link
+                to="/sessions"
+                className="inline-flex items-center justify-center rounded-full bg-success py-2 px-6 text-sm font-medium text-white hover:bg-opacity-90"
               >
-                Edit Profile
-              </button>
-            )}
+                View Sessions
+              </Link>
+            </div>
           </div>
         </div>
 
