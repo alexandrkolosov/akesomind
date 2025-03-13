@@ -3,17 +3,40 @@ import { formatDate, formatTime } from '../../utils/dateUtils';
 
 export interface Session {
   id: string;
-  date: string; // ISO date string
-  startTime: string; // ISO date string
-  endTime: string; // ISO date string
-  status: 'completed' | 'upcoming' | 'cancelled';
-  notes?: string;
+  date?: string; // ISO date string - for client-side formatted data
+  startTime?: string; // ISO date string - for client-side formatted data
+  endTime?: string; // ISO date string - for client-side formatted data
+  
+  // Fields from actual API response
+  startsAt?: string;
+  durationMinutes?: number;
+  completedAt?: string | null;
+  status: 'completed' | 'upcoming' | 'cancelled' | 'OPEN_FOR_BOOKING' | 'COMPLETED' | string;
+  notes?: string | { list: any[]; total: number };
+  
+  // Relationship data
+  therapist?: { id: string | number; firstName?: string; lastName?: string };
+  client?: { id: string | number; firstName?: string; lastName?: string };
   therapistId?: string;
   therapistName?: string;
+  
   // Daily.co fields
+  room?: {
+    id: number;
+    name: string;
+    therapistId: number;
+    dailyCoId: string;
+    dailyCoUrl: string;
+  };
   dailyCoUrl?: string;
   dailyCoClientToken?: string;
   dailyCoTherapistToken?: string;
+  
+  // Payment fields
+  paymentLink?: string | null;
+  costInCents?: number;
+  currency?: string;
+  isRecurring?: boolean;
 }
 
 interface SessionListProps {
@@ -29,9 +52,15 @@ function SessionList({ sessions, userType }: SessionListProps) {
   const now = new Date();
   
   // Check if a session is within 5 minutes of starting
-  const isSessionStartingSoon = (sessionDate: string, startTime: string) => {
-    const sessionDateTime = new Date(`${sessionDate}T${startTime}`);
+  const isSessionStartingSoon = (session: Session) => {
+    // Use either startsAt from the API or startTime from the client-side data
+    const sessionStartTime = session.startsAt || session.startTime;
+    if (!sessionStartTime) return false;
+    
+    // For sessions with date and startTime separately
+    const sessionDateTime = new Date(sessionStartTime);
     const fiveMinutesBeforeStart = new Date(sessionDateTime.getTime() - 5 * 60 * 1000);
+    
     return now >= fiveMinutesBeforeStart && now < sessionDateTime;
   };
 
@@ -56,14 +85,28 @@ function SessionList({ sessions, userType }: SessionListProps) {
       console.log("Session data:", sessionData);
       
       // Extract Daily.co information
-      const { dailyCoUrl, dailyCoClientToken, dailyCoTherapistToken } = sessionData;
+      let dailyCoUrl = '';
+      let token = '';
+      
+      // Check where dailyCo information is stored based on API response
+      if (sessionData.room && sessionData.room.dailyCoUrl) {
+        // If room object contains the URL
+        dailyCoUrl = sessionData.room.dailyCoUrl;
+      } else if (sessionData.dailyCoUrl) {
+        // Direct dailyCoUrl property
+        dailyCoUrl = sessionData.dailyCoUrl;
+      }
       
       if (!dailyCoUrl) {
         throw new Error("Daily.co URL not found in session data");
       }
       
       // Determine which token to use based on user type
-      const token = userType === 'client' ? dailyCoClientToken : dailyCoTherapistToken;
+      if (userType === 'client') {
+        token = sessionData.dailyCoClientToken;
+      } else {
+        token = sessionData.dailyCoTherapistToken;
+      }
       
       if (!token) {
         throw new Error(`${userType} token not found in session data`);
@@ -79,12 +122,23 @@ function SessionList({ sessions, userType }: SessionListProps) {
     }
   };
 
+  // Function to get formatted status text
+  const getFormattedStatus = (status: string) => {
+    if (status === 'OPEN_FOR_BOOKING') return 'upcoming';
+    if (status === 'COMPLETED') return 'completed';
+    if (status === 'CANCELLED') return 'cancelled';
+    
+    // If it's already in lowercase format, use it as is
+    return status.toLowerCase();
+  };
+
   // Function to render the status badge with appropriate color
   const renderStatusBadge = (status: string) => {
+    const formattedStatus = getFormattedStatus(status);
     let bgColor = '';
     let textColor = '';
     
-    switch (status) {
+    switch (formattedStatus) {
       case 'completed':
         bgColor = 'bg-success-50 dark:bg-success-500/15';
         textColor = 'text-success-700 dark:text-success-400';
@@ -104,9 +158,67 @@ function SessionList({ sessions, userType }: SessionListProps) {
     
     return (
       <span className={`inline-flex rounded-full px-2 py-0.5 text-theme-xs font-medium ${bgColor} ${textColor}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {formattedStatus.charAt(0).toUpperCase() + formattedStatus.slice(1)}
       </span>
     );
+  };
+  
+  // Function to get the session start time from different possible API formats
+  const getSessionStart = (session: Session): Date | null => {
+    if (session.startsAt) {
+      return new Date(session.startsAt);
+    }
+    
+    if (session.date && session.startTime) {
+      return new Date(session.startTime);
+    }
+    
+    return null;
+  };
+  
+  // Function to get the session end time from different possible API formats
+  const getSessionEnd = (session: Session): Date | null => {
+    // If we have startsAt and durationMinutes, calculate end time
+    if (session.startsAt && session.durationMinutes) {
+      const start = new Date(session.startsAt);
+      return new Date(start.getTime() + session.durationMinutes * 60 * 1000);
+    }
+    
+    // If we have direct endTime
+    if (session.endTime) {
+      return new Date(session.endTime);
+    }
+    
+    return null;
+  };
+  
+  // Function to format session time for display
+  const formatSessionTime = (session: Session): string => {
+    const start = getSessionStart(session);
+    const end = getSessionEnd(session);
+    
+    if (!start) return '-';
+    
+    if (end) {
+      return `${formatTime(start)} - ${formatTime(end)}`;
+    }
+    
+    return formatTime(start);
+  };
+  
+  // Function to format session date for display
+  const formatSessionDate = (session: Session): string => {
+    const start = getSessionStart(session);
+    
+    if (!start) return '-';
+    
+    return formatDate(start);
+  };
+  
+  // Check if a session is upcoming
+  const isUpcoming = (session: Session): boolean => {
+    const status = getFormattedStatus(session.status);
+    return status === 'upcoming';
   };
 
   return (
@@ -146,19 +258,19 @@ function SessionList({ sessions, userType }: SessionListProps) {
           >
             <div className="col-span-2 flex items-center">
               <p className="text-sm text-black dark:text-white">
-                {formatDate(session.date)}
+                {formatSessionDate(session)}
               </p>
             </div>
             <div className="col-span-2 hidden items-center sm:flex">
               <p className="text-sm text-black dark:text-white">
-                {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                {formatSessionTime(session)}
               </p>
             </div>
             <div className="col-span-2 flex items-center">
               {renderStatusBadge(session.status)}
             </div>
             <div className="col-span-2 flex items-center">
-              {session.status === 'upcoming' && isSessionStartingSoon(session.date, session.startTime) ? (
+              {isUpcoming(session) && isSessionStartingSoon(session) ? (
                 <button
                   className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-4 text-sm font-medium text-white hover:bg-opacity-90 disabled:bg-opacity-70 disabled:cursor-not-allowed"
                   onClick={() => handleJoinSession(session.id)}
@@ -168,7 +280,7 @@ function SessionList({ sessions, userType }: SessionListProps) {
                 </button>
               ) : (
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {session.status === 'upcoming' ? 'Available 5 min before start' : '-'}
+                  {isUpcoming(session) ? 'Available 5 min before start' : '-'}
                 </span>
               )}
             </div>
